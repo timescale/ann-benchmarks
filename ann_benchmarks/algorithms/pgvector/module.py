@@ -25,22 +25,27 @@ class PGVector(BaseANN):
         conn = psycopg.connect(user="ann", password="ann", dbname="ann", host="localhost")
         pgvector.psycopg.register_vector(conn)
         cur = conn.cursor()
-        cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
-        cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
-        print("copying data...")
-        with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
-            for i, embedding in enumerate(X):
-                copy.write_row((i, embedding))
-        print("creating index...")
-        if self._metric == "angular":
-            cur.execute(
-                "CREATE INDEX ON items USING ivfflat (embedding vector_cosine_ops) WITH (lists = %d)" % self._lists
-            )
-        elif self._metric == "euclidean":
-            cur.execute("CREATE INDEX ON items USING ivfflat (embedding vector_l2_ops) WITH (lists = %d)" % self._lists)
-        else:
-            raise RuntimeError(f"unknown metric {self._metric}")
-        print("done!")
+        cur.execute("select count(*) from pg_class where relname = 'item'")
+        table_count = cur,fetchone()[0]
+
+        if table_count == 0:
+            cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
+            cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
+            print("copying data...")
+            with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
+                for i, embedding in enumerate(X):
+                    copy.write_row((i, embedding))
+            print("creating index...")
+            if self._metric == "angular":
+                cur.execute(
+                    "CREATE INDEX ON items USING ivfflat (embedding vector_cosine_ops) WITH (lists = %d)" % self._lists
+                )
+            elif self._metric == "euclidean":
+                cur.execute("CREATE INDEX ON items USING ivfflat (embedding vector_l2_ops) WITH (lists = %d)" % self._lists)
+            else:
+                raise RuntimeError(f"unknown metric {self._metric}")
+            conn.commit()
+            print("done!")
         self._cur = cur
 
     def set_query_arguments(self, probes):
