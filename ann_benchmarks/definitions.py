@@ -68,7 +68,8 @@ def algorithm_status(definition: Definition) -> InstantiationStatus:
         else:
             return InstantiationStatus.NO_CONSTRUCTOR
     except ImportError:
-        return InstantiationStatus.NO_MODULE
+        raise
+        #return InstantiationStatus.NO_MODULE
 
 
 def _generate_combinations(args: Union[List[Any], Dict[Any, Any]]) -> List[Union[List[Any], Dict[Any, Any]]]:
