@@ -25,8 +25,8 @@ class PGVector(BaseANN):
         conn = psycopg.connect(user="ann", password="ann", dbname="ann", host="localhost")
         pgvector.psycopg.register_vector(conn)
         cur = conn.cursor()
-        cur.execute("select count(*) from pg_class where relname = 'item'")
-        table_count = cur,fetchone()[0]
+        cur.execute("select count(*) from pg_class where relname = 'items'")
+        table_count = cur.fetchone()[0]
 
         if table_count == 0:
             cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
