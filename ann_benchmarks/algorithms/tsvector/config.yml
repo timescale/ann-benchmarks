@@ -3,8 +3,8 @@ float:
   - base_args: ['@metric']
     constructor: TSVector
     disabled: false
-    docker_tag: ann-benchmarks-pgvector
-    module: ann_benchmarks.algorithms.pgvector
+    docker_tag: ann-benchmarks-tsvector
+    module: ann_benchmarks.algorithms.tsvector
     name: tsvector
     run_groups:
       tsvector1:
@@ -14,7 +14,7 @@ float:
         args: [[50], [10], [1.2]]
         query_args: [[100], [1000]]
       tsvector3:
-        args: [[50], [25], [1.0]]
+        args: [[50], [20], [1.0]]
         query_args: [[100], [1000]]
       tsvector4:
         args: [[50], [50], [1.0]]
