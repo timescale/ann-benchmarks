@@ -45,7 +45,7 @@ class TSVector(BaseANN):
             print("creating index...")
             if self._metric == "angular":
                 cur.execute(
-                    "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f)" % self._num_neighbors, self._search_list_size, self._max_alpha
+                    "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f)" % (self._num_neighbors, self._search_list_size, self._max_alpha)
                 )
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")

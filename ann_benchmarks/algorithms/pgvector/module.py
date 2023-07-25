@@ -44,7 +44,7 @@ class PGVector(BaseANN):
                 cur.execute("CREATE INDEX ON items USING ivfflat (embedding vector_l2_ops) WITH (lists = %d)" % self._lists)
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
-            conn.commit()
+            #conn.commit()
             print("done!")
         self._cur = cur
 
