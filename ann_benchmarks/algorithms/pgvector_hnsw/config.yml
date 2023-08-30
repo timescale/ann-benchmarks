@@ -1,0 +1,18 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: PGVectorHNSW
+    disabled: false
+    docker_tag: ann-benchmarks-pgvector_hnsw
+    module: ann_benchmarks.algorithms.pgvector_hnsw
+    name: pgvector_hnsw
+    run_groups:
+      M-12:
+        arg_groups: [{M: 12, efConstruction: 60}]
+        query_args: [[10, 100, 200, 400, 600]]
+      M-16:
+        arg_groups: [{M: 16, efConstruction: 40}]
+        query_args: [[10, 100, 200, 400, 600]]
+      M-24:
+        arg_groups: [{M: 24, efConstruction: 48}]
+        query_args: [[10, 100, 200, 400, 600]]
