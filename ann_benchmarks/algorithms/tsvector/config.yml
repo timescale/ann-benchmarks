@@ -9,16 +9,16 @@ float:
     run_groups:
       tsvector1:
         args: [[50], [10], [1.0]]
-        query_args: [[100], [1000]]
+        query_args: [[10, 50, 100]]
       tsvector2:
         args: [[50], [10], [1.2]]
-        query_args: [[100], [1000]]
+        query_args: [[10, 50, 50]]
       tsvector3:
         args: [[50], [20], [1.0]]
-        query_args: [[100], [1000]]
+        query_args: [[10, 50, 100]]
       tsvector4:
-        args: [[50], [50], [1.0]]
-        query_args: [[100], [1000]]
+        args: [[50], [50], [1.2]]
+        query_args: [[10, 50, 100]]
       tsvector5:
         args: [[50], [65], [1.0]]
-        query_args: [[100], [1000]]
+        query_args: [[10, 50, 100]]

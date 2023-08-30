@@ -50,6 +50,7 @@ jobs:
           - onng_ngt
           - opensearchknn
           - panng_ngt
+          - pg_embedding_hnsw
           - pgvector
           - pynndescent
           - redisearch

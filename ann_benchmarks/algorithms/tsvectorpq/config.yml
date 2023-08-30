@@ -1,0 +1,25 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: TSVectorpq
+    disabled: false
+    docker_tag: ann-benchmarks-tsvectorpq
+    module: ann_benchmarks.algorithms.tsvectorpq
+    name: tsvectorpq
+    run_groups:
+      tsvector1:
+        args: [[50], [10], [1.0], [256]]
+        query_args: [[10, 50, 50], [100]]
+      tsvector2:
+        args: [[50], [10], [1.2], [256]]
+        query_args: [[10, 50, 50], [100]]
+      tsvector3:
+        args: [[50], [20], [1.2], [256]]
+        query_args: [[10, 50, 100], [200]]
+      tsvector4:
+        args: [[50], [50], [1.2], [256]]
+        query_args: [[10, 50, 100], [50]]
+      tsvector5:
+        args: [[50], [65], [1.0], [256]]
+        query_args: [[10, 50, 100], [100]]
+      

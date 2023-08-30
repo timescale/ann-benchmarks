@@ -1,25 +1,23 @@
 import subprocess
 import sys
-
 import pgvector.psycopg
 import psycopg
-
 from ..base.module import BaseANN
 
-
-class TSVector(BaseANN):
-    def __init__(self, metric, num_neighbors, search_list_size, max_alpha):
+class TSVectorpq(BaseANN):
+    def __init__(self, metric, num_neighbors, search_list_size, max_alpha, num_clusters):
         self._metric = metric
         self._num_neighbors = num_neighbors
         self._search_list_size = search_list_size
         self._max_alpha = max_alpha
+        self._num_clusters = num_clusters
         self._cur = None
 
         if metric == "angular":
-            self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
+            self._query = "with raw as (SELECT id, embedding FROM items order by embedding <=> %s limit %s) select id from raw order by embedding <=> %s limit %s"
         else:
             if metric == "euclidean":
-                self._query = "SELECT id FROM items ORDER BY embedding <-> %s LIMIT %s"
+                self._query = "with raw as (SELECT id, embedding FROM items order by embedding <-> %s limit %s) select id from raw order by embedding <-> %s limit %s"
             else:
                 raise RuntimeError(f"unknown metric {metric}")
 
@@ -38,7 +36,6 @@ class TSVector(BaseANN):
             with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
                 for i, embedding in enumerate(X):
                     copy.write_row((i, embedding))
-
             conn.commit();
 
         cur.execute("drop index if exists idx_tsv")
@@ -46,20 +43,22 @@ class TSVector(BaseANN):
         index_count = cur.fetchone()[0]
 
         if index_count == 0:
-            print("Creating Index (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f)" % (self._num_neighbors, self._search_list_size, self._max_alpha))
+            print("Creating Index (embedding) WITH (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f, use_pq=true, num_clusters=%d)"
+                   % (self._num_neighbors, self._search_list_size, self._max_alpha, self._num_clusters))
             if self._metric == "angular" or self._metric == "euclidean":
                 cur.execute(
-                    "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f)" % (self._num_neighbors, self._search_list_size, self._max_alpha)
+                            "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f, use_pq=true, num_clusters=%d)"
+                              % (self._num_neighbors, self._search_list_size, self._max_alpha, self._num_clusters)
                 )
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
-            #conn.commit()
+            conn.commit()
             print("done!")
-
         self._cur = cur
 
-    def set_query_arguments(self, query_search_list_size):
+    def set_query_arguments(self, query_search_list_size, cte_limit):
         self._query_search_list_size = query_search_list_size
+        self._cte_limit = cte_limit
         self._cur.execute("SET tsv.query_search_list_size = %d" % query_search_list_size)
         print("SET tsv.query_search_list_size = %d" % query_search_list_size)
         # TODO set based on available memory
@@ -68,8 +67,8 @@ class TSVector(BaseANN):
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
 
     def query(self, v, n):
-        self._cur.execute(self._query, (v, n), binary=True, prepare=True)
+        self._cur.execute(self._query, (v, self._cte_limit, v, n), binary=True, prepare=True)
         return [id for id, in self._cur.fetchall()]
 
     def __str__(self):
-        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha} query_search_list_size={self._query_search_list_size})"
+        return f"TSVectorPQ(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, num_clusters={self._num_clusters} query_search_list_size={self._query_search_list_size} cte_limit={self._cte_limit})"
