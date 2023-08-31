@@ -5,12 +5,12 @@ import psycopg
 from ..base.module import BaseANN
 
 class TSVectorpq(BaseANN):
-    def __init__(self, metric, num_neighbors, search_list_size, max_alpha, num_clusters):
+    def __init__(self, metric, num_neighbors, search_list_size, max_alpha, pq_vector_length):
         self._metric = metric
         self._num_neighbors = num_neighbors
         self._search_list_size = search_list_size
         self._max_alpha = max_alpha
-        self._num_clusters = num_clusters
+        self._pq_vector_length = pq_vector_length
         self._cur = None
 
         if metric == "angular":
@@ -43,12 +43,12 @@ class TSVectorpq(BaseANN):
         index_count = cur.fetchone()[0]
 
         if index_count == 0:
-            print("Creating Index (embedding) WITH (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f, use_pq=true, num_clusters=%d)"
-                   % (self._num_neighbors, self._search_list_size, self._max_alpha, self._num_clusters))
+            print("Creating Index (embedding) WITH (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f, use_pq=true, pq_vector_length=%d)"
+                   % (self._num_neighbors, self._search_list_size, self._max_alpha, self._pq_vector_length))
             if self._metric == "angular" or self._metric == "euclidean":
                 cur.execute(
-                            "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f, use_pq=true, num_clusters=%d)"
-                              % (self._num_neighbors, self._search_list_size, self._max_alpha, self._num_clusters)
+                            "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f, use_pq=true, pq_vector_length=%d)"
+                              % (self._num_neighbors, self._search_list_size, self._max_alpha, self._pq_vector_length)
                 )
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
@@ -71,4 +71,4 @@ class TSVectorpq(BaseANN):
         return [id for id, in self._cur.fetchall()]
 
     def __str__(self):
-        return f"TSVectorPQ(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, num_clusters={self._num_clusters} query_search_list_size={self._query_search_list_size} cte_limit={self._cte_limit})"
+        return f"TSVectorPQ(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, pq_vector_length={self._pq_vector_length} query_search_list_size={self._query_search_list_size} cte_limit={self._cte_limit})"
