@@ -65,6 +65,7 @@ class TSVectorpq(BaseANN):
         self._cur.execute("SET work_mem = '256MB'")
         # disable parallel query execution
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
+        self._cur.execute("SET enable_seqscan=0")
 
     def query(self, v, n):
         self._cur.execute(self._query, (v, self._cte_limit, v, n), binary=True, prepare=True)

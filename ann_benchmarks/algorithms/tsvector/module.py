@@ -62,10 +62,11 @@ class TSVector(BaseANN):
         self._query_search_list_size = query_search_list_size
         self._cur.execute("SET tsv.query_search_list_size = %d" % query_search_list_size)
         print("SET tsv.query_search_list_size = %d" % query_search_list_size)
-        # TODO set based on available memory
         self._cur.execute("SET work_mem = '256MB'")
         # disable parallel query execution
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
+        self._cur.execute("SET enable_seqscan=0")
+
 
     def query(self, v, n):
         self._cur.execute(self._query, (v, n), binary=True, prepare=True)
