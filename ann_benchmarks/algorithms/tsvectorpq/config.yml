@@ -8,6 +8,17 @@ float:
     name: tsvectorpq
     run_groups:
       tsvector1:
-        args: [[64], [10], [1.5], [256]]
-        query_args: [[125], [50]]
-      
+        args: [[64], [50], [1.2], [256]]
+        query_args: [[50, 100], [100]]
+      tsvector2:
+        args: [[64], [125], [1.2], [256]]
+        query_args: [[50, 100], [100]]
+      tsvector3:
+        args: [[50], [100], [1.2], [128]]
+        query_args: [[50, 100], [50]]
+      tsvector4:
+        args: [[64], [100], [1.0], [256]]
+        query_args: [[10, 100], [50]]
+      tsvector5:
+        args: [[50], [100], [1.5], [256]]
+        query_args: [[50, 100], [100]]

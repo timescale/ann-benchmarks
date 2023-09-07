@@ -47,6 +47,7 @@ class TSVector(BaseANN):
 
         if index_count == 0:
             print("Creating Index (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f)" % (self._num_neighbors, self._search_list_size, self._max_alpha))
+            cur.execute("SET maintenance_work_mem = '8GB'")
             if self._metric == "angular" or self._metric == "euclidean":
                 cur.execute(
                     "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f)" % (self._num_neighbors, self._search_list_size, self._max_alpha)
@@ -54,15 +55,18 @@ class TSVector(BaseANN):
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
             #conn.commit()
-            print("done!")
-
+            # reset back to the default value after index creation
+            cur.execute("SET maintenance_work_mem = '2GB'")
+            print("Prewarming index...")
+            cur.execute("SELECT pg_prewarm('idx_tsv', 'buffer')")
+            print("Index prewarming done!")
         self._cur = cur
 
     def set_query_arguments(self, query_search_list_size):
         self._query_search_list_size = query_search_list_size
         self._cur.execute("SET tsv.query_search_list_size = %d" % query_search_list_size)
         print("SET tsv.query_search_list_size = %d" % query_search_list_size)
-        self._cur.execute("SET work_mem = '256MB'")
+        self._cur.execute("SET work_mem = '8GB'")
         # disable parallel query execution
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
         self._cur.execute("SET enable_seqscan=0")

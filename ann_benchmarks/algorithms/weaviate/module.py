@@ -21,6 +21,7 @@ class Weaviate(BaseANN):
         }[metric]
 
     def fit(self, X):
+        self.client.schema.delete_all()
         self.client.schema.create(
             {
                 "classes": [

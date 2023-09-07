@@ -42,6 +42,7 @@ class PGVector(BaseANN):
 
         if index_count == 0:                    
             print("Creating Index (lists = %d)" % self._lists)
+            cur.execute("SET maintenance_work_mem = '8GB'")
             if self._metric == "angular":
                 cur.execute(
                     "CREATE INDEX pgv_idx ON items USING ivfflat (embedding vector_cosine_ops) WITH (lists = %d)" % self._lists
@@ -50,8 +51,11 @@ class PGVector(BaseANN):
                 cur.execute("CREATE INDEX pgv_idx ON items USING ivfflat (embedding vector_l2_ops) WITH (lists = %d)" % self._lists)
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
-            conn.commit()
-            print("done!")
+            # reset back to the default value after index creation
+            cur.execute("SET maintenance_work_mem = '2GB'")
+            print("Prewarming index...")
+            cur.execute("SELECT pg_prewarm('pgv_idx', 'buffer')")
+            print("Index prewarming done!")
         self._cur = cur
 
     def set_query_arguments(self, probes):
@@ -59,9 +63,10 @@ class PGVector(BaseANN):
         self._cur.execute("SET ivfflat.probes = %d" % probes)
         print("SET ivfflat.probes = %d" % probes)
         # TODO set based on available memory
-        self._cur.execute("SET work_mem = '1024MB'")
+        self._cur.execute("SET work_mem = '8GB'")
         # disable parallel query execution
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
+        self._cur.execute("SET enable_seqscan=0")
 
     def query(self, v, n):
         self._cur.execute(self._query, (v, n), binary=True, prepare=True)

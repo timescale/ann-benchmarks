@@ -41,6 +41,7 @@ class PGVectorHNSW(BaseANN):
 
         if index_count == 0:
             print("Creating Index (m = %s, ef_construction = %d)" % (self._m, self._ef_construction))
+            cur.execute("SET maintenance_work_mem = '8GB'")
             cur.execute("SET min_parallel_table_scan_size TO 1")
             if self._metric == "angular":
                 cur.execute(
@@ -50,14 +51,22 @@ class PGVectorHNSW(BaseANN):
                 cur.execute("CREATE INDEX pgv_idx ON items USING hnsw (embedding vector_l2_ops) WITH (m = %s, ef_construction = %d)" % (self._m, self._ef_construction))
             else:
                 raise RuntimeError(f"unknown metric {self._metric}")
-            print("done!")
+            # reset back to the default value after index creation
+            cur.execute("SET maintenance_work_mem = '2GB'")
+            print("Prewarming index...")
+            cur.execute("SELECT pg_prewarm('pgv_idx', 'buffer')")
+            print("Index prewarming done!")
         self._cur = cur
 
     def set_query_arguments(self, ef_search):
         self._ef_search = ef_search
         self._cur.execute("SET hnsw.ef_search = %d" % ef_search)
         print("SET hnsw.ef_search = %d" % ef_search)
-        self._cur.execute("SET work_mem = '4GB'")
+        # TODO set based on available memory
+        self._cur.execute("SET work_mem = '8GB'")
+        # disable parallel query execution
+        self._cur.execute("SET max_parallel_workers_per_gather = 0")
+        self._cur.execute("SET enable_seqscan=0")
 
     def query(self, v, n):
         self._cur.execute(self._query, (v, n), binary=True, prepare=True)
