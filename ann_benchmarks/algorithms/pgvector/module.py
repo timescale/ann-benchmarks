@@ -68,6 +68,12 @@ class PGVector(BaseANN):
         self._cur.execute("SET max_parallel_workers_per_gather = 0")
         self._cur.execute("SET enable_seqscan=0")
 
+    def get_memory_usage(self):
+        if self._cur is None:
+            return 0
+        self._cur.execute("SELECT pg_relation_size('pgv_idx')")
+        return self._cur.fetchone()[0] / 1024
+
     def query(self, v, n):
         self._cur.execute(self._query, (v, n), binary=True, prepare=True)
         return [id for id, in self._cur.fetchall()]
