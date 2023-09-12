@@ -31,10 +31,12 @@ class PGVector(BaseANN):
         if table_count == 0:
             cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
             cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
+            conn.commit()
             print("copying data...")
             with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
                 for i, embedding in enumerate(X):
                     copy.write_row((i, embedding))
+            cur.execute("COMMIT")        
 
         cur.execute("drop index if exists pgv_idx")
         cur.execute("select count(*) from pg_indexes where indexname = 'pgv_idx'")
@@ -42,7 +44,7 @@ class PGVector(BaseANN):
 
         if index_count == 0:                    
             print("Creating Index (lists = %d)" % self._lists)
-            cur.execute("SET maintenance_work_mem = '8GB'")
+            cur.execute("SET maintenance_work_mem = '16GB'")
             if self._metric == "angular":
                 cur.execute(
                     "CREATE INDEX pgv_idx ON items USING ivfflat (embedding vector_cosine_ops) WITH (lists = %d)" % self._lists
@@ -53,9 +55,10 @@ class PGVector(BaseANN):
                 raise RuntimeError(f"unknown metric {self._metric}")
             # reset back to the default value after index creation
             cur.execute("SET maintenance_work_mem = '2GB'")
-            print("Prewarming index...")
-            cur.execute("SELECT pg_prewarm('pgv_idx', 'buffer')")
-            print("Index prewarming done!")
+            conn.commit()
+        print("Prewarming index...")
+        cur.execute("SELECT pg_prewarm('pgv_idx', 'buffer')")
+        print("Index prewarming done!")
         self._cur = cur
 
     def set_query_arguments(self, probes):

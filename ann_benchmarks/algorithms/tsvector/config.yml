@@ -7,18 +7,18 @@ float:
     module: ann_benchmarks.algorithms.tsvector
     name: tsvector
     run_groups:
-      tsvector1:
-        args: [[50], [10], [1.0]]
-        query_args: [[10, 50, 100]]
-      tsvector2:
-        args: [[50], [10], [1.2]]
-        query_args: [[10, 50, 50]]
-      tsvector3:
-        args: [[64], [100], [1.0]]
-        query_args: [[10, 50, 100]]
+      #tsvector1:
+      #  args: [[50], [10], [1.0]]
+      #  query_args: [[10, 50, 100]]
+      #tsvector2:
+      #  args: [[50], [10], [1.2]]
+      #  query_args: [[10, 50, 50]]
+      #tsvector3:
+      #  args: [[64], [100], [1.0]]
+      #  query_args: [[10, 50, 100]]
       tsvector4:
         args: [[64], [50], [1.2]]
-        query_args: [[10, 50, 100]]
-      tsvector5:
-        args: [[50], [100], [1.0]]
-        query_args: [[10, 50, 100]]
+        query_args: [[10, 50, 100, 400, 600]]
+      #tsvector5:
+      #  args: [[50], [100], [1.0]]
+      #  query_args: [[10, 50, 100]]

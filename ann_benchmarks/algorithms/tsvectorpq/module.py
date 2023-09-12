@@ -32,11 +32,12 @@ class TSVectorpq(BaseANN):
         if table_count == 0:
             cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
             cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
+            conn.commit()
             print("copying data...")
             with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
                 for i, embedding in enumerate(X):
                     copy.write_row((i, embedding))
-            conn.commit();
+            cur.execute("COMMIT")
 
         cur.execute("drop index if exists idx_tsv")
         cur.execute("select count(*) from pg_indexes where indexname = 'idx_tsv'")
@@ -45,7 +46,7 @@ class TSVectorpq(BaseANN):
         if index_count == 0:
             print("Creating Index (embedding) WITH (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f, use_pq=true, pq_vector_length=%d)"
                    % (self._num_neighbors, self._search_list_size, self._max_alpha, self._pq_vector_length))
-            cur.execute("SET maintenance_work_mem = '8GB'")
+            cur.execute("SET maintenance_work_mem = '16GB'")
             if self._metric == "angular" or self._metric == "euclidean":
                 cur.execute(
                             "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f, use_pq=true, pq_vector_length=%d)"
@@ -56,9 +57,10 @@ class TSVectorpq(BaseANN):
             #conn.commit()
             # reset back to the default value after index creation
             cur.execute("SET maintenance_work_mem = '2GB'")
-            print("Prewarming index...")
-            cur.execute("SELECT pg_prewarm('idx_tsv', 'buffer')")
-            print("Index prewarming done!")
+            conn.commit()
+        print("Prewarming index...")
+        cur.execute("SELECT pg_prewarm('idx_tsv', 'buffer')")
+        print("Index prewarming done!")
         self._cur = cur
 
     def set_query_arguments(self, query_search_list_size, cte_limit):
