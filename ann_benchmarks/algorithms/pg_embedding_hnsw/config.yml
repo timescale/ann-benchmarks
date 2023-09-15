@@ -9,10 +9,13 @@ float:
     run_groups:
       M-12:
         arg_groups: [{M: 12, efConstruction: 60}]
-        query_args: [[10, 100, 200, 400, 600]]
+        query_args: [[10, 100, 250, 400, 600]]
       M-16:
         arg_groups: [{M: 16, efConstruction: 40}]
-        query_args: [[10, 100, 200, 400, 600]]
+        query_args: [[10, 100, 250, 400, 600]]
       M-24:
-        arg_groups: [{M: 24, efConstruction: 40}]
-        query_args: [[10, 100, 200, 400, 600]]
+        arg_groups: [{M: 24, efConstruction: 56}]
+        query_args: [[10, 100, 250, 400, 600]]
+      M-36:
+        arg_groups: [{M: 36, efConstruction: 128}]
+        query_args: [[10, 100, 250, 400, 600]]
