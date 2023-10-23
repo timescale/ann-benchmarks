@@ -51,7 +51,7 @@ def get_dataset(dataset_name: str) -> Tuple[h5py.File, int]:
     """
     hdf5_filename = get_dataset_fn(dataset_name)
     try:
-        dataset_url = f"http://ann-benchmarks.com/{dataset_name}.hdf5"
+        dataset_url = f"https://ann-benchmarks.com/{dataset_name}.hdf5"
         download(dataset_url, hdf5_filename)
     except:
         print(f"Cannot download {dataset_url}")
@@ -601,6 +601,6 @@ DATASETS: Dict[str, Callable[[str], None]] = {
 }
 
 DATASETS.update({
-    f"dbpedia-openai-{n//1000}k-angular": lambda out_fn: dbpedia_entities_openai_1M(out_fn, n)
+    f"dbpedia-openai-{n//1000}k-angular": lambda out_fn, i=n: dbpedia_entities_openai_1M(out_fn, i)
     for n in range(100_000, 1_100_000, 100_000)
 })
