@@ -570,6 +570,17 @@ def dbpedia_entities_openai_1M(out_fn, n = None):
     write_output(X_train, X_test, out_fn, "angular")
 
 
+def cohere_wikipedia_22_12_simple_embeddings(out_fn, n, test_size):
+    from sklearn.model_selection import train_test_split
+    from datasets import load_dataset
+    import numpy as np
+    docs = load_dataset(f"Cohere/wikipedia-22-12-simple-embeddings", split="train")
+    embeddings = [docs[idx]['emb'] for idx in range(n)]
+    embeddings = np.vstack(embeddings)
+    X_train, X_test = train_test_split(embeddings, test_size=test_size, random_state=42)
+    write_output(X_train, X_test, out_fn, "euclidean")
+
+
 DATASETS: Dict[str, Callable[[str], None]] = {
     "deep-image-96-angular": deep_image,
     "fashion-mnist-784-euclidean": fashion_mnist,
@@ -603,4 +614,9 @@ DATASETS: Dict[str, Callable[[str], None]] = {
 DATASETS.update({
     f"dbpedia-openai-{n//1000}k-angular": lambda out_fn, i=n: dbpedia_entities_openai_1M(out_fn, i)
     for n in range(100_000, 1_100_000, 100_000)
+})
+
+DATASETS.update({
+    f"cohere-wikipedia-22-12-simple-embeddings-{n//1000}k-euclidean" : lambda out_fn, i=x, j=y: cohere_wikipedia_22_12_simple_embeddings(out_fn, i, j)
+    for x, y in [(10_000, 100), (100_000, 1000), (1_000_000, 10_000), (10_000_000, 10_000)]
 })
