@@ -17,7 +17,10 @@ float:
       #  args: [[64], [100], [1.0]]
       #  query_args: [[10, 50, 100]]
       tsvector4:
-        args: [[64], [50], [1.2]]
+        args: [
+            ["postgres://<user>:<password>@<host>:<port>/<dbname>"],
+            [64], [50], [1.2], [0], [0]
+          ]
         query_args: [[10, 50, 100, 400, 600]]
       #tsvector5:
       #  args: [[50], [100], [1.0]]

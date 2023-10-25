@@ -1,30 +1,30 @@
-import subprocess
-import sys
-import pgvector.psycopg
-import psycopg
 from ..base.module import BaseANN
+import psycopg
 from psycopg_pool import ConnectionPool
+from pgvector.psycopg import register_vector
+
 
 class TSVector(BaseANN):
-    def __init__(self, metric, num_neighbors, search_list_size, max_alpha):
+    def __init__(self, metric, connection_str, num_neighbors, search_list_size, max_alpha, pq_vector_length, query_search_list_size):
         self._metric = metric
+        self._connection_str = connection_str
         self._num_neighbors = num_neighbors
         self._search_list_size = search_list_size
         self._max_alpha = max_alpha
+        self._pq_vector_length = pq_vector_length
+        self._query_search_list_size = query_search_list_size if query_search_list_size > 0 else None
         self._pool = None
-        self._query_search_list_size = None
 
         if metric == "angular":
             self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
+        elif metric == "euclidean":
+            self._query = "SELECT id FROM items ORDER BY embedding <-> %s LIMIT %s"
         else:
-            if metric == "euclidean":
-                self._query = "SELECT id FROM items ORDER BY embedding <-> %s LIMIT %s"
-            else:
-                raise RuntimeError(f"unknown metric {metric}")
+            raise RuntimeError(f"unknown metric {metric}")
 
     def start_pool(self):
         def configure(conn):
-            pgvector.psycopg.register_vector(conn)
+            register_vector(conn)
             if self._query_search_list_size is not None:
                 conn.execute("SET tsv.query_search_list_size = %d" % self._query_search_list_size)
                 print("SET tsv.query_search_list_size = %d" % self._query_search_list_size)
@@ -33,42 +33,42 @@ class TSVector(BaseANN):
                 conn.execute("SET max_parallel_workers_per_gather = 0")
                 conn.execute("SET enable_seqscan=0")
             conn.commit()
-
-        self._pool = ConnectionPool("postgresql://ann:ann@localhost/ann",
-                                    min_size=1, max_size=16, configure=configure)
+        self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=16, configure=configure)
 
     def fit(self, X):
-        #subprocess.run("service postgresql start", shell=True, check=True, stdout=sys.stdout, stderr=sys.stderr)
         self.start_pool()
-
         with self._pool.connection() as conn:
             cur = conn.cursor()
             cur.execute("select count(*) from pg_class where relname = 'items'")
             table_count = cur.fetchone()[0]
 
             if table_count == 0:
-                cur.execute("CREATE TABLE items (id int, embedding vector(%d))" % X.shape[1])
+                cur.execute(f"CREATE TABLE items (id int, embedding vector({int(X.shape[1])}))")
                 cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
                 conn.commit()
                 print("copying data...")
                 with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
                     for i, embedding in enumerate(X):
                         copy.write_row((i, embedding))
-                cur.execute("COMMIT")
+                conn.commit()
 
             cur.execute("drop index if exists idx_tsv")
             cur.execute("select count(*) from pg_indexes where indexname = 'idx_tsv'")
             index_count = cur.fetchone()[0]
 
             if index_count == 0:
-                print("Creating Index (num_neighbors=%d, search_list_size=%d, max_alpha=%.2f)" % (self._num_neighbors, self._search_list_size, self._max_alpha))
                 cur.execute("SET maintenance_work_mem = '16GB'")
-                if self._metric == "angular" or self._metric == "euclidean":
-                    cur.execute(
-                        "CREATE INDEX idx_tsv ON items USING tsv (embedding) WITH (num_neighbors = %d, search_list_size = %d, max_alpha=%f)" % (self._num_neighbors, self._search_list_size, self._max_alpha)
+                if self._metric != "angular" and self._metric != "euclidean":
+                    raise RuntimeError(f"unknown metric {self._metric}")
+                if self._pq_vector_length < 1:
+                    cur.execute(f"""CREATE INDEX idx_tsv ON items USING tsv (embedding) 
+                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                     )
                 else:
-                    raise RuntimeError(f"unknown metric {self._metric}")
+                    cur.execute(f"""CREATE INDEX idx_tsv ON items USING tsv (embedding) 
+                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                        max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
+                    )
                 # reset back to the default value after index creation
                 cur.execute("SET maintenance_work_mem = '2GB'")
                 conn.commit()

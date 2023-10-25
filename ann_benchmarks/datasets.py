@@ -591,12 +591,8 @@ def cohere_wikipedia_22_12(out_fn, n, test_size):
     embeddings = None
     for src in srcs:
         docs = load_dataset(src, split="train")
-        if remaining < len(docs):
-            docs = docs[:remaining]
-            remaining = 0
-        else:
-            remaining = remaining - len(docs)
-        docs = [docs[i]['emb'] for i in range(len(docs))]
+        x = remaining if remaining < len(docs) else len(docs)
+        docs = [docs[i]['emb'] for i in range(x)]
         docs = np.vstack(docs)
         if embeddings is None:
             embeddings = docs
@@ -644,6 +640,6 @@ DATASETS.update({
 })
 
 DATASETS.update({
-    f"cohere-wikipedia-22-12-{n//1000}k-euclidean" : lambda out_fn, i=x, j=y: cohere_wikipedia_22_12(out_fn, i, j)
+    f"cohere-wikipedia-22-12-{x//1000}k-euclidean" : lambda out_fn, i=x, j=y: cohere_wikipedia_22_12(out_fn, i, j)
     for x, y in [(10_000, 100), (100_000, 1000), (1_000_000, 10_000), (10_000_000, 10_000)]
 })
