@@ -13,7 +13,10 @@ data/*
 
 results/*
 !results/*.png
+results.csv
 
 venv
 
 .idea
+
+.python-version

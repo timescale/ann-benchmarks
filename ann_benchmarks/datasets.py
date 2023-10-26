@@ -576,6 +576,7 @@ def cohere_wikipedia_22_12(out_fn, n, test_size):
     import numpy as np
     srcs = [
         "Cohere/wikipedia-22-12-en-embeddings",
+        "Cohere/wikipedia-22-12-simple-embeddings",
         "Cohere/wikipedia-22-12-de-embeddings",
         "Cohere/wikipedia-22-12-fr-embeddings",
         "Cohere/wikipedia-22-12-es-embeddings",
@@ -584,23 +585,35 @@ def cohere_wikipedia_22_12(out_fn, n, test_size):
         "Cohere/wikipedia-22-12-ar-embeddings",
         "Cohere/wikipedia-22-12-zh-embeddings",
         "Cohere/wikipedia-22-12-ko-embeddings",
-        "Cohere/wikipedia-22-12-simple-embeddings",
         "Cohere/wikipedia-22-12-hi-embeddings"
     ]
     remaining = n
     embeddings = None
     for src in srcs:
-        docs = load_dataset(src, split="train")
-        x = remaining if remaining < len(docs) else len(docs)
-        docs = [docs[i]['emb'] for i in range(x)]
-        docs = np.vstack(docs)
-        if embeddings is None:
-            embeddings = docs
-        else:
-            embeddings = np.concatenate((embeddings, docs))
-        if remaining == 0:
+        if remaining <= 0:
             break
+        batch = []
+        print(f"loading dataset: {src}")
+        docs = load_dataset(src, split="train")
+        for i in range(len(docs)):
+            if 'emb' not in docs[i]:
+                print(f"embedding missing from doc {i}")
+                continue
+            batch.append(docs[i]['emb'])
+            remaining -= 1
+            if remaining <= 0:
+                break
+        print(f"adding batch of {len(batch)} embeddings")
+        batch = np.vstack(batch)
+        if embeddings is None:
+            embeddings = batch
+        else:
+            embeddings = np.concatenate((embeddings, batch))
+    print(f"total embeddings: {len(embeddings)}")
     X_train, X_test = train_test_split(embeddings, test_size=test_size, random_state=42)
+    print(f"train size: {len(X_train)}")
+    print(f"test size: {len(X_test)}")
+    print(f"writing output...")
     write_output(X_train, X_test, out_fn, "euclidean")
 
 
@@ -632,14 +645,12 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "movielens1m-jaccard": movielens1m,
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
+    "cohere-wikipedia-22-12-10k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100),
+    "cohere-wikipedia-22-12-1M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 1000),
+    "cohere-wikipedia-22-12-100M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000),
 }
 
 DATASETS.update({
     f"dbpedia-openai-{n//1000}k-angular": lambda out_fn, i=n: dbpedia_entities_openai_1M(out_fn, i)
     for n in range(100_000, 1_100_000, 100_000)
-})
-
-DATASETS.update({
-    f"cohere-wikipedia-22-12-{x//1000}k-euclidean" : lambda out_fn, i=x, j=y: cohere_wikipedia_22_12(out_fn, i, j)
-    for x, y in [(10_000, 100), (100_000, 1000), (1_000_000, 10_000), (10_000_000, 10_000)]
 })
