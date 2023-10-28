@@ -572,8 +572,7 @@ def dbpedia_entities_openai_1M(out_fn, n = None):
 
 def cohere_wikipedia_22_12(out_fn, n, test_size):
     from sklearn.model_selection import train_test_split
-    from datasets import load_dataset
-    import numpy as np
+    from datasets import load_dataset, concatenate_datasets
     srcs = [
         "Cohere/wikipedia-22-12-en-embeddings",
         "Cohere/wikipedia-22-12-simple-embeddings",
@@ -587,34 +586,35 @@ def cohere_wikipedia_22_12(out_fn, n, test_size):
         "Cohere/wikipedia-22-12-ko-embeddings",
         "Cohere/wikipedia-22-12-hi-embeddings"
     ]
-    remaining = n
-    embeddings = None
+    target = n + test_size
+    running_total = 0
+    datasets = []
     for src in srcs:
-        if remaining <= 0:
+        if running_total >= target:
             break
-        batch = []
         print(f"loading dataset: {src}")
-        docs = load_dataset(src, split="train")
-        for i in range(len(docs)):
-            if 'emb' not in docs[i]:
-                print(f"embedding missing from doc {i}")
-                continue
-            batch.append(docs[i]['emb'])
-            remaining -= 1
-            if remaining <= 0:
-                break
-        print(f"adding batch of {len(batch)} embeddings")
-        batch = np.vstack(batch)
-        if embeddings is None:
-            embeddings = batch
-        else:
-            embeddings = np.concatenate((embeddings, batch))
-    print(f"total embeddings: {len(embeddings)}")
-    X_train, X_test = train_test_split(embeddings, test_size=test_size, random_state=42)
-    print(f"train size: {len(X_train)}")
-    print(f"test size: {len(X_test)}")
+        ds = load_dataset(src, split="train")
+        ds.set_format(type="numpy", columns=["emb"])
+        count = ds.shape[0]
+        print(f"{count} embeddings in dataset")
+        if running_total + count > target:
+            count = target - running_total
+            print(f"full dataset not required. selecting {count}")
+            ds = ds.select(range(count))
+            count = ds.shape[0]
+            print(f"{count} embeddings selected")
+        datasets.append(ds)
+        running_total += count
+        print(f"running total: {running_total}")
+    ds = datasets[0] if len(datasets) == 1 else concatenate_datasets(datasets)
+    print(f"final dataset size: {ds.shape[0]}")
+    print("splitting training/testing sets...")
+    train, test = train_test_split(ds, test_size=test_size, random_state=42)
+    train = train["emb"]
+    test = test["emb"]
     print(f"writing output...")
-    write_output(X_train, X_test, out_fn, "euclidean")
+    write_output(train, test, out_fn, "euclidean")
+    print("done")
 
 
 DATASETS: Dict[str, Callable[[str], None]] = {
@@ -646,7 +646,11 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
     "cohere-wikipedia-22-12-10k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100),
+    "cohere-wikipedia-22-12-100k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000, 500),
+    "cohere-wikipedia-22-12-500k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 500_000, 1000),
     "cohere-wikipedia-22-12-1M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 1000),
+    "cohere-wikipedia-22-12-5M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 5_000_000, 1000),
+    "cohere-wikipedia-22-12-50M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 5000),
     "cohere-wikipedia-22-12-100M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000),
 }
 

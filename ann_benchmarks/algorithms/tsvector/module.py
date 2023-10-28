@@ -1,8 +1,7 @@
 from ..base.module import BaseANN
-import psycopg
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
-
+from datetime import datetime, timezone, timedelta
 
 class TSVector(BaseANN):
     def __init__(self, metric, connection_str, num_neighbors, search_list_size, max_alpha, pq_vector_length, query_search_list_size):
@@ -16,11 +15,7 @@ class TSVector(BaseANN):
         self._pool = None
 
         if metric == "euclidean":
-            self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
-        #if metric == "angular":
-        #    self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
-        #elif metric == "euclidean":
-        #    self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
+            self._query = "SELECT id FROM public.items ORDER BY embedding <=> %s LIMIT %s"
         else:
             raise RuntimeError(f"unknown metric {metric}")
         print(f"query: {self._query}")
@@ -42,39 +37,50 @@ class TSVector(BaseANN):
         self.start_pool()
         with self._pool.connection() as conn:
             cur = conn.cursor()
-            cur.execute("select count(*) from pg_class where relname = 'items'")
+            cur.execute("SELECT count(*) FROM pg_class WHERE relname = 'items'")
             table_count = cur.fetchone()[0]
 
             if table_count == 0:
                 print("creating table...")
-                cur.execute(f"CREATE TABLE items (id int, embedding vector({int(X.shape[1])}))")
-                cur.execute("ALTER TABLE items ALTER COLUMN embedding SET STORAGE PLAIN")
+                cur.execute(f"CREATE TABLE public.items (id int, t timestamptz, embedding vector({int(X.shape[1])}))")
+                cur.execute("ALTER TABLE public.items ALTER COLUMN embedding SET STORAGE PLAIN")
+                cur.execute("SELECT create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>'1d'::interval)")
                 conn.commit()
-                print("copying data...")
-                with cur.copy("COPY items (id, embedding) FROM STDIN") as copy:
-                    for i, embedding in enumerate(X):
-                        copy.write_row((i, embedding))
-                conn.commit()
+                i = 0
+                d = datetime(2000, 1, 1, tzinfo=timezone.utc)
+                e = enumerate(X)
+                print(f"copying {len(X)} rows into table...")
+                while i < len(X):
+                    print(f"copying data into chunk: {d}")
+                    with cur.copy("COPY public.items (id, t, embedding) FROM STDIN") as copy:
+                        while i < len(X):
+                            _, v = next(e)
+                            copy.write_row((i, d, v))
+                            i += 1
+                            if i % 100_000 == 0:
+                                d = d + timedelta(days=1.0)
+                                break
+                    print(f"i = {i} committing...")
+                    conn.commit()
 
-            cur.execute("drop index if exists idx_tsv")
+            print("creating index...")
+            cur.execute("DROP INDEX if exists idx_tsv")
             cur.execute("SET maintenance_work_mem = '16GB'")
-            if self._metric != "angular" and self._metric != "euclidean":
+            if self._metric != "euclidean":
                 raise RuntimeError(f"unknown metric {self._metric}")
             if self._pq_vector_length < 1:
-                cur.execute(f"""CREATE INDEX idx_tsv ON items USING tsv (embedding) 
+                cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
                     WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                 )
             else:
-                cur.execute(f"""CREATE INDEX idx_tsv ON items USING tsv (embedding) 
+                cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
                     WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
                     max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
                 )
             # reset back to the default value after index creation
             cur.execute("SET maintenance_work_mem = '2GB'")
             conn.commit()
-            #print("Prewarming index...")
-            #cur.execute("SELECT pg_prewarm('idx_tsv', 'buffer')")
-            #print("Index prewarming done!")
+            print("index created")
 
     def set_query_arguments(self, query_search_list_size):
         self._query_search_list_size = query_search_list_size
