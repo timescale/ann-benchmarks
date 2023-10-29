@@ -1,0 +1,21 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: Pinecone
+    disabled: false
+    docker_tag: ann-benchmarks-pinecone
+    module: ann_benchmarks.algorithms.pinecone
+    name: pinecone
+    run_groups:
+      pinecone1:
+        args: [
+            ["<api-key>"],
+            ["<environment>"],
+            ["<index_name>"],
+            [4],
+            ["s1.x1"]
+          ]
+        query_args: [[10, 50, 100, 400, 600]]
+
+
+

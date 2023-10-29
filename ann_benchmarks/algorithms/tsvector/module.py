@@ -1,4 +1,8 @@
 from ..base.module import BaseANN
+import numpy
+from multiprocessing.pool import ThreadPool
+from typing import Any, Dict, Optional
+import psutil
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
 from datetime import datetime, timezone, timedelta
@@ -39,7 +43,6 @@ class TSVector(BaseANN):
             cur = conn.cursor()
             cur.execute("SELECT count(*) FROM pg_class WHERE relname = 'items'")
             table_count = cur.fetchone()[0]
-
             if table_count == 0:
                 print("creating table...")
                 cur.execute(f"CREATE TABLE public.items (id int, t timestamptz, embedding vector({int(X.shape[1])}))")
@@ -63,24 +66,27 @@ class TSVector(BaseANN):
                     print(f"i = {i} committing...")
                     conn.commit()
 
-            print("creating index...")
-            cur.execute("DROP INDEX if exists idx_tsv")
-            cur.execute("SET maintenance_work_mem = '16GB'")
-            if self._metric != "euclidean":
-                raise RuntimeError(f"unknown metric {self._metric}")
-            if self._pq_vector_length < 1:
-                cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
-                    WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
-                )
-            else:
-                cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
-                    WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
-                    max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
-                )
-            # reset back to the default value after index creation
-            cur.execute("SET maintenance_work_mem = '2GB'")
-            conn.commit()
-            print("index created")
+            cur.execute("select count(*) from pg_indexes where schemaname = 'public' and tablename = 'items' and indexname = 'idx_tsv'")
+            index_count = cur.fetchone()[0]
+            if index_count == 0:
+                print("creating index...")
+                cur.execute("DROP INDEX if exists idx_tsv")
+                cur.execute("SET maintenance_work_mem = '16GB'")
+                if self._metric != "euclidean":
+                    raise RuntimeError(f"unknown metric {self._metric}")
+                if self._pq_vector_length < 1:
+                    cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
+                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
+                    )
+                else:
+                    cur.execute(f"""CREATE INDEX idx_tsv ON public.items USING tsv (embedding) 
+                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                        max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
+                    )
+                # reset back to the default value after index creation
+                cur.execute("SET maintenance_work_mem = '2GB'")
+                conn.commit()
+                print("index created")
 
     def set_query_arguments(self, query_search_list_size):
         self._query_search_list_size = query_search_list_size
@@ -90,18 +96,26 @@ class TSVector(BaseANN):
         self.start_pool()
 
     def get_memory_usage(self):
-        if self._pool is None:
-            return 0
-        with self._pool.connection() as conn:
-            with conn.cursor() as cursor:
-                cursor.execute("SELECT pg_relation_size('idx_tsv')")
-                return cursor.fetchone()[0] / 1024
+        return psutil.Process().memory_info().rss / 1024
+        #if self._pool is None:
+        #    return 0
+        #with self._pool.connection() as conn:
+        #    with conn.cursor() as cursor:
+        #        cursor.execute("SELECT pg_relation_size('idx_tsv')")
+        #        return cursor.fetchone()[0] / 1024
 
     def query(self, v, n):
         with self._pool.connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(self._query, (v, n), binary=True, prepare=True)
                 return [id for id, in cursor.fetchall()]
+
+    def batch_query(self, X: numpy.array, n: int) -> None:
+        pool = ThreadPool()
+        self.res = pool.map(lambda q: self.query(q, n), X)
+
+    def get_batch_results(self) -> numpy.array:
+        return self.res
 
     def __str__(self):
         return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"
