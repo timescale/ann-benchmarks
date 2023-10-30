@@ -11,9 +11,9 @@ float:
         args: [
             ["<api-key>"],
             ["<environment>"],
-            ["<index_name>"],
+            ["<index-name>"],
             [4],
-            ["s1.x1"]
+            ["<pod-type>"]
           ]
         query_args: [[10, 50, 100, 400, 600]]
 

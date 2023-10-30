@@ -1,5 +1,5 @@
 from ..base.module import BaseANN
-from multiprocessing.pool import ThreadPool
+import concurrent.futures
 from typing import Any, Dict, Optional
 import psutil
 import pinecone
@@ -61,8 +61,16 @@ class Pinecone(BaseANN):
         return numpy.array(matches)
 
     def batch_query(self, X: numpy.array, n: int) -> None:
-        pool = ThreadPool()
-        self.res = pool.map(lambda q: self.query(q, n), X)
+        results = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+            futures = [executor.submit(self.query, q, n) for q in X]
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    results.append(future.result())
+                except Exception as x2:
+                    print(f"exception getting batch results: {x2}")
+        self.res = numpy.array(results)
+
 
     def get_batch_results(self) -> numpy.array:
         return self.res
