@@ -9,10 +9,14 @@ float:
     run_groups:
       tsvector1:
         args: [
-            ["postgres://<user>:<password>@<host>:<port>/<dbname>"],
-            [64], [50], [1.2], [0], [0]
+            ["postgres://tsdbadmin:n2c8tpqfw4kqjn7g@mjrlw1gyiv.dwfmuuutru.tsdb.cloud.timescale.com:32630/tsdb?sslmode=require"],
+            [64], # num_neighbors
+            [50], # search_list_size
+            [1.2], # max_alpha
+            [0], # pq_vector_length
+            [0], # query_search_list_size
           ]
-        query_args: [[10, 50, 100, 400, 600]]
+        query_args: [[10, 50, 100, 400, 600]] # query_search_list_size
       #tsvector2:
       #  args: [[50], [10], [1.2]]
       #  query_args: [[10, 50, 50]]
