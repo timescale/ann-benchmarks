@@ -6,6 +6,7 @@ import pinecone
 import numpy
 from time import sleep
 
+
 class Pinecone(BaseANN):
     def __init__(self, metric, api_key, environment, index_name, pods, pod_type, replicas):
         self._metric = metric
@@ -75,7 +76,6 @@ class Pinecone(BaseANN):
                     print(f"exception getting batch results: {x2}")
         self.res = numpy.array(results)
 
-
     def get_batch_results(self) -> numpy.array:
         return self.res
 
@@ -83,4 +83,4 @@ class Pinecone(BaseANN):
         self._query_search_list_size = query_search_list_size
 
     def __str__(self) -> str:
-        return f"Pinecone(index_name={self._index_name}, pods={self._pods}, pod_type={self._pod_type}, query_search_list_size={self._query_search_list_size})"
+        return f"Pinecone(index_name={self._index_name}, pods={self._pods}, pod_type={self._pod_type}, replicas={self._replicas}, query_search_list_size={self._query_search_list_size})"
