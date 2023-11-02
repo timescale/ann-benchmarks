@@ -13,7 +13,8 @@ float:
             ["<environment>"],
             ["<index-name>"],
             [4],
-            ["<pod-type>"]
+            ["p2.x2"],
+            [1],
           ]
         query_args: [[10, 50, 100, 400, 600]]
 
