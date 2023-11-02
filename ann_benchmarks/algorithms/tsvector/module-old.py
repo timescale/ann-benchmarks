@@ -7,17 +7,13 @@ import psycopg
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
 from datetime import datetime, timezone, timedelta
-import subprocess
-import os
-import sys
-import shutil
 
 
 MAX_DB_CONNECTIONS = 32
-MAX_CREATE_INDEX_THREADS = 32
-MAX_BATCH_QUERY_THREADS = 8
-EMBEDDINGS_PER_COPY_BATCH = 5_000 # how many rows per COPY statement
-EMBEDDINGS_PER_CHUNK = 100_000 # how many rows per hypertable chunk
+MAX_CREATE_INDEX_THREADS = 8
+MAX_BATCH_QUERY_THREADS = 4
+EMBEDDINGS_PER_COPY_BATCH = 100_000 # how many rows per COPY statement
+EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
 START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc) # minimum time used for time column
 CHUNK_TIME_STEP = timedelta(days=1) # how much to increment the time column by for each chunk
 CHUNK_TIME_INTERVAL = "'1d'::interval"
@@ -70,7 +66,7 @@ class TSVector(BaseANN):
             cur.execute(f"SELECT create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
             conn.commit()
 
-    def load_table_serial(self, X: numpy.array) -> None:
+    def load_table(self, conn: psycopg.Connection, X: numpy.array) -> None:
         batches: list[numpy.array] = None
         if X.shape[0] < EMBEDDINGS_PER_COPY_BATCH:
             batches = [X]
@@ -78,45 +74,82 @@ class TSVector(BaseANN):
             splits = [x for x in range(0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
             batches = numpy.split(X, splits)
         print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
-        with self._pool.connection() as conn:
-            with conn.cursor() as cur:
-                i = -1
-                d = START_TIME - CHUNK_TIME_STEP
-                for b, batch in enumerate(batches):
-                    print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
-                    with cur.copy("COPY public.items (id, t, embedding) FROM STDIN") as copy:
-                        for v in batch:
-                            i += 1
-                            if i % EMBEDDINGS_PER_CHUNK == 0:
-                                d = d + CHUNK_TIME_STEP
-                            copy.write_row((i, d, v))
-                        conn.commit()
+        with conn.cursor() as cur:
+            i = -1
+            d = START_TIME - CHUNK_TIME_STEP
+            for b, batch in enumerate(batches):
+                print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
+                with cur.copy("COPY public.items (id, t, embedding) FROM STDIN") as copy:
+                    for v in batch:
+                        i += 1
+                        if i % EMBEDDINGS_PER_CHUNK == 0:
+                            d = d + CHUNK_TIME_STEP
+                        copy.write_row((i, d, v))
+                    conn.commit()
 
-    def load_table_parallel(self, X: numpy.array) -> None:
-        cmd = f"""timescaledb-parallel-copy -connection '{self._connection_str}' -columns 'id,t,embedding' -schema public -table items -workers 32 -log-batches"""
-        p = subprocess.Popen(args=cmd, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=subprocess.STDOUT, text=True, shell=True, env=os.environ)
-        i = -1
-        d = START_TIME - CHUNK_TIME_STEP
-        for v in X:
-            i += 1
-            if i > 0 and i % EMBEDDINGS_PER_COPY_BATCH == 0:
-                p.stdin.flush()
-            if i % EMBEDDINGS_PER_CHUNK == 0:
-                d = d + CHUNK_TIME_STEP
-                v2 = '"[' + ",".join([f"{j}" for j in v]) + ']"'
-            p.stdin.write(f"""{i},"{d.isoformat()}",{v2}\n""")
-        p.stdin.flush()
-        p.stdin.close()
-        retcode = p.wait()
-        if retcode != 0:
-            raise subprocess.CalledProcessError(returncode=retcode, cmd=cmd)
-        print("finished loading the table")
+#    def load_table(self, conn: psycopg.Connection, X: numpy.array) -> None:
+#        with conn.cursor() as cur:
+#            i = 0
+#            d = datetime(2000, 1, 1, tzinfo=timezone.utc)
+#            e = enumerate(X)
+#            print(f"copying {len(X)} rows into table...")
+#            while i < len(X):
+#                print(f"copying data into chunk: {d}")
+#                with cur.copy("COPY public.items (id, t, embedding) FROM STDIN") as copy:
+#                    while i < len(X):
+#                        i, v = next(e)
+#                        d = START_TIME + (i // EMBEDDINGS_PER_CHUNK) * CHUNK_TIME_STEP
+#                        copy.write_row((i, d, v))
+#                        if (i+1) % EMBEDDINGS_PER_COPY_BATCH == 0:
+#                            break
+#                print(f"i = {i} committing...")
+#                conn.commit()
 
-    def load_table(self, X: numpy.array) -> None:
-        if shutil.which("timescaledb-parallel-copy") is None:
-            return self.load_table_serial(X)
-        else:
-            return self.load_table_parallel(X)
+
+    # def load_batch(self, batch_num: int, batch: numpy.array) -> Optional[Exception]:
+    #     if batch.shape[0] == 0:
+    #         return None
+    #     id = batch_num * EMBEDDINGS_PER_COPY_BATCH
+    #     d = START_TIME + (batch_num // EMBEDDINGS_PER_CHUNK * CHUNK_TIME_STEP)
+    #     try:
+    #         with self._pool.connection() as conn:
+    #             with conn.cursor() as cur:
+    #                 cur.execute(f"create temp table batch{batch_num} (like public.items excluding constraints excluding indexes) on commit drop")
+    #                 with cur.copy(f"copy batch{batch_num} (id, t, embedding) from stdin") as copy:
+    #                     for v in batch:
+    #                         copy.write_row((id, d, v))
+    #                         id += 1
+    #                 cur.execute(f"insert into public.items (id, t, embedding) select id, t, embedding from batch{batch_num}")
+    #                 conn.commit()
+    #     except Exception as x:
+    #         return x
+    #     return None
+
+    # def load_table(self, X: numpy.array) -> None:
+    #     total = X.shape[0]
+    #     batches:list[tuple[int, numpy.array]] = None
+    #     if total < EMBEDDINGS_PER_COPY_BATCH:
+    #         batches = [(0, X)]
+    #     else:
+    #         splits = [x for x in range(0, total, EMBEDDINGS_PER_COPY_BATCH)]
+    #         batches = [(i, batch) for i, batch in enumerate(numpy.split(X, splits))]
+    #     random.shuffle(batches) # reduce lock contention (hopefully)
+    #     threads = min(MAX_DB_CONNECTIONS, len(batches))
+    #     print(f"loading table in {len(batches)} batches using {threads} threads...")
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+    #         futures = {executor.submit(self.load_batch, b[0], b[1]): b[0] for b in batches}
+    #         for future in concurrent.futures.as_completed(futures):
+    #             chunk_num = futures[future]
+    #             try:
+    #                 x = future.result()
+    #             except Exception as x2:
+    #                 print(f"loading batch {chunk_num} hit an exception: {x2}")
+    #             else:
+    #                 if x is not None:
+    #                     print(f"loading batch {chunk_num} hit an exception: {x}")
+    #                 else:
+    #                     print(f"loaded batch {chunk_num}")
+    #     print("finished loading table")
 
     def list_chunks(self, conn: psycopg.Connection) -> list[str]:
         with conn.cursor() as cur:
@@ -181,13 +214,10 @@ class TSVector(BaseANN):
                 cur.execute("create extension if not exists timescaledb")
                 cur.execute("create extension if not exists timescale_vector cascade")
         self.start_pool()
-        table_exists:bool = False
         with self._pool.connection() as conn:
-            table_exists = self.does_table_exist(conn)
-            if not table_exists:
+            if not self.does_table_exist(conn):
                 self.create_table(conn, int(X.shape[1]))
-        if not table_exists:
-            self.load_table(X)
+                self.load_table(conn, X)
         chunks: list[str] = None
         with self._pool.connection() as conn:
             chunks = self.list_chunks(conn)
