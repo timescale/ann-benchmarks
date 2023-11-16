@@ -15,7 +15,6 @@ from qdrant_client.http.models import (
     BinaryQuantizationConfig,
     ScalarType,
     HnswConfigDiff,
-    VectorStruct,
 )
 
 from ..base.module import BaseANN
@@ -27,7 +26,7 @@ BATCH_SIZE = 128
 class Qdrant(BaseANN):
     _distances_mapping = {"dot": Distance.DOT, "angular": Distance.COSINE, "euclidean": Distance.EUCLID}
 
-    def __init__(self, metric, url, api_key, quantization, m, ef_construct):
+    def __init__(self, metric, quantization, m, ef_construct):
         self._ef_construct = ef_construct
         self._m = m
         self._metric = metric
@@ -39,13 +38,11 @@ class Qdrant(BaseANN):
         self.batch_latencies = []
 
         qdrant_client_params = {
-            "url": url,
-            "api_key": api_key,
-            #"host": "localhost",
-            #"port": 6333,
-            #"grpc_port": 6334,
+            "host": "localhost",
+            "port": 6333,
+            "grpc_port": 6334,
             "prefer_grpc": self._grpc,
-            #"https": False,
+            "https": False,
         }
         self._client = QdrantClient(**qdrant_client_params)
 
@@ -67,7 +64,6 @@ class Qdrant(BaseANN):
                 binary=BinaryQuantizationConfig(always_ram=True)
             )
 
-        print("recreating collection...")
         # Disabling indexing during bulk upload
         # https://qdrant.tech/documentation/tutorials/bulk-upload/#disable-indexing-during-upload
         # Uploading to multiple shards
@@ -90,28 +86,14 @@ class Qdrant(BaseANN):
             timeout=TIMEOUT,
         )
 
-        collection = [
-            [float(f) for f in x]
-            for x in X
-        ]
-        print("uploading collection...")
         self._client.upload_collection(
             collection_name=self._collection_name,
-            vectors=collection,
+            vectors=X,
+            ids=list(range(X.shape[0])),
             batch_size=BATCH_SIZE,
             parallel=1,
         )
 
-        #print("uploading collection...")
-        #self._client.upload_collection(
-        #    collection_name=self._collection_name,
-        #    vectors=X,
-        #    ids=list(range(X.shape[0])),
-        #    batch_size=BATCH_SIZE,
-        #    parallel=1,
-        #)
-
-        print("re-enabling indexing...")
         # Re-enabling indexing
         self._client.update_collection(
             collection_name=self._collection_name,
@@ -125,7 +107,6 @@ class Qdrant(BaseANN):
         SECONDS_WAITING_FOR_INDEXING_API_CALL = 5
 
         while True:
-            print("waiting for indexing to complete...")
             sleep(SECONDS_WAITING_FOR_INDEXING_API_CALL)
             collection_info = self._client.get_collection(self._collection_name)
             if collection_info.status != CollectionStatus.GREEN:
@@ -136,7 +117,6 @@ class Qdrant(BaseANN):
                 print(f"Stored vectors: {collection_info.vectors_count}")
                 print(f"Indexed vectors: {collection_info.indexed_vectors_count}")
                 print(f"Collection status: {collection_info.indexed_vectors_count}")
-                print("indexing complete.")
                 break
 
     def set_query_arguments(self, hnsw_ef, rescore):

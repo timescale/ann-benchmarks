@@ -570,7 +570,7 @@ def dbpedia_entities_openai_1M(out_fn, n = None):
     write_output(X_train, X_test, out_fn, "angular")
 
 
-def cohere_wikipedia_22_12(out_fn, n, test_size):
+def cohere_wikipedia_22_12(out_fn, n, test_size, distance):
     from sklearn.model_selection import train_test_split
     from datasets import load_dataset, concatenate_datasets
     srcs = [
@@ -613,7 +613,7 @@ def cohere_wikipedia_22_12(out_fn, n, test_size):
     train = train["emb"]
     test = test["emb"]
     print(f"writing output...")
-    write_output(train, test, out_fn, "euclidean")
+    write_output(train, test, out_fn, distance)
     print("done")
 
 
@@ -645,13 +645,22 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "movielens1m-jaccard": movielens1m,
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
-    "cohere-wikipedia-22-12-10k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100),
-    "cohere-wikipedia-22-12-100k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000, 500),
-    "cohere-wikipedia-22-12-500k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 500_000, 1000),
-    "cohere-wikipedia-22-12-1M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 1000),
-    "cohere-wikipedia-22-12-5M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 5_000_000, 1000),
-    "cohere-wikipedia-22-12-50M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 5000),
-    "cohere-wikipedia-22-12-100M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000),
+    #"cohere-wikipedia-22-12-10k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100, "euclidean"),
+    #"cohere-wikipedia-22-12-100k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000, 500, "euclidean"),
+    #"cohere-wikipedia-22-12-500k-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 500_000, 1000, "euclidean"),
+    #"cohere-wikipedia-22-12-1M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 1000, "euclidean"),
+    #"cohere-wikipedia-22-12-5M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 5_000_000, 1000, "euclidean"),
+    #"cohere-wikipedia-22-12-50M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 5000, "euclidean"),
+    #"cohere-wikipedia-22-12-100M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000, "euclidean"),
+    "cohere-wikipedia-22-12-10k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100, "angular"),
+    "cohere-wikipedia-22-12-100k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000, 1000, "angular"),
+    "cohere-wikipedia-22-12-500k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 500_000, 5000, "angular"),
+    "cohere-wikipedia-22-12-1M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 10_000, "angular"),
+    "cohere-wikipedia-22-12-5M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 5_000_000, 10_000, "angular"),
+    "cohere-wikipedia-22-12-10M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000_000, 5_000, "angular"),
+    "cohere-wikipedia-22-12-50M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 10_000, "angular"),
+    "cohere-wikipedia-22-12-50M-angular-1k-test": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 1_000, "angular"),
+    "cohere-wikipedia-22-12-100M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000, "angular"),
 }
 
 DATASETS.update({

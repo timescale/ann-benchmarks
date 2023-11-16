@@ -9,6 +9,8 @@ from time import sleep
 
 class Pinecone(BaseANN):
     def __init__(self, metric, api_key, environment, index_name, pods, pod_type, replicas):
+        if metric == "angular":
+            metric = "cosine"
         self._metric = metric
         self._api_key = api_key
         self._environment = environment
@@ -35,9 +37,14 @@ class Pinecone(BaseANN):
                 print(f"deleting existing index {self._index_name}...")
                 pinecone.delete_index(self._index_name)
         print(f"creating index {self._index_name}...")
-        pinecone.create_index(name=self._index_name, dimension=dimension, 
-                              metric=self._metric, pods=self._pods, 
-                              pod_type=self._pod_type, replicas=self._replicas)
+        if self._replicas > 0:
+            pinecone.create_index(name=self._index_name, dimension=dimension, 
+                                metric=self._metric, pods=self._pods, 
+                                pod_type=self._pod_type, replicas=self._replicas)
+        else:
+            pinecone.create_index(name=self._index_name, dimension=dimension, 
+                                metric=self._metric, pods=self._pods, 
+                                pod_type=self._pod_type)
         print("waiting for index to be ready...")
         ready = False
         while not ready:
@@ -48,13 +55,13 @@ class Pinecone(BaseANN):
         index = pinecone.Index(self._index_name)
         total = len(X)
         print(f"upserting {total} vectors...")
-        batch = []
+        batch: list[dict] = []
         for i, v in enumerate(X):
-            batch.append({"id": str(i), "values": v.astype(float).tolist()})
+            batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
             if len(batch) == 100 or i == total - 1:
                 print(f"{i}: upserting batch of {len(batch)} vectors")
                 index.upsert(vectors=batch, batch_size=len(batch), show_progress=True)
-                batch = []
+                batch: list[dict] = []
         print("index loaded")
         self._index = index
 

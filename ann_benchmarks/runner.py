@@ -5,6 +5,7 @@ import os
 import threading
 import time
 from typing import Dict, Optional, Tuple, List, Union
+import h5py
 
 import colors
 import docker
@@ -152,15 +153,17 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple[
         Tuple: Transformed datasets.
     """
     D, dimension = get_dataset(dataset_name)
-    X_train = numpy.array(D["train"])
+    X_train = D["train"]
+    # X_train = numpy.array(D["train"])
     X_test = numpy.array(D["test"])
     distance = D.attrs["distance"]
 
     print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
     print(f"Got {len(X_test)} queries")
 
-    train, test = dataset_transform(D)
-    return train, test, distance
+    #train, test = dataset_transform(D)
+    #return train, test, distance
+    return X_train, X_test, distance
 
 
 def build_index(algo: BaseANN, X_train: numpy.ndarray) -> Tuple:

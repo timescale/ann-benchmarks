@@ -9,14 +9,14 @@ float:
     run_groups:
       tsvector1:
         args: [
-            ["postgres://<user>:<password>@<host>:<port>/<dbname>"],
-            [64], # num_neighbors
-            [50], # search_list_size
+            ["postgres://ann:ann@localhost:5432/ann"],
+            [80], # num_neighbors
+            [120], # search_list_size
             [1.2], # max_alpha
-            [0], # pq_vector_length
-            [0], # query_search_list_size
+            [256], # pq_vector_length
+            [25], # query_search_list_size
           ]
-        query_args: [[10, 50, 100, 400, 600]] # query_search_list_size
+        query_args: [[25]] # query_search_list_size
       #tsvector2:
       #  args: [[50], [10], [1.2]]
       #  query_args: [[10, 50, 50]]
