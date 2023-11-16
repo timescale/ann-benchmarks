@@ -73,15 +73,16 @@ class Pinecone(BaseANN):
         return numpy.array(matches)
 
     def batch_query(self, X: numpy.array, n: int) -> None:
-        results = []
+        results = numpy.empty((X.shape[0], n), dtype=int)
         with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
-            futures = [executor.submit(self.query, q, n) for q in X]
+            futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
+                i = futures[future]
                 try:
-                    results.append(future.result())
+                    results[i] = future.result()
                 except Exception as x2:
                     print(f"exception getting batch results: {x2}")
-        self.res = numpy.array(results)
+        self.res = results
 
     def get_batch_results(self) -> numpy.array:
         return self.res
