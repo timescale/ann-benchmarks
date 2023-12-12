@@ -11,9 +11,9 @@ float:
         args: [
             [""],
             ["us-east-1-aws"],
-            ["index4"],
-            [2],
-            ["p2.x4"],
+            ["index2"],
+            [4],
+            ["p2.x8"],
             [1],
           ]
         query_args: [[10]]

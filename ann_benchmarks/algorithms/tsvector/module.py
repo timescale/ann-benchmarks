@@ -12,11 +12,12 @@ import os
 import sys
 import shutil
 import uuid
+from time import time
 
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
-MAX_BATCH_QUERY_THREADS = 8
+MAX_BATCH_QUERY_THREADS = 16
 EMBEDDINGS_PER_COPY_BATCH = 5_000 # how many rows per COPY statement
 EMBEDDINGS_PER_CHUNK = 500_000 # how many rows per hypertable chunk
 START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc) # minimum time used for time column
@@ -55,8 +56,8 @@ class TSVector(BaseANN):
         self._pool : ConnectionPool = None
         self._log = Log()
         if metric == "angular":
-            self._query: str = "select id from public.items order by embedding <=> %s limit %s"
-            #self._query: str = "with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"
+            #self._query: str = "select id from public.items order by embedding <=> %s limit %s"
+            self._query: str = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
         #elif metric == "euclidean": not supported
         #    self._query: str = "SELECT id FROM public.items ORDER BY embedding <-> %s LIMIT %s"
         else:
@@ -73,6 +74,7 @@ class TSVector(BaseANN):
                 # disable parallel query execution
                 conn.execute("SET max_parallel_workers_per_gather = 0")
                 conn.execute("SET enable_seqscan=0")
+                conn.execute("SET jit = 'off'")
             conn.commit()
         self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
@@ -260,21 +262,32 @@ class TSVector(BaseANN):
                 cursor.execute(self._query, (q, n), binary=True, prepare=True)
                 return numpy.array([id for id, in cursor.fetchall()])
 
+    def query_timed(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
+        start = time()
+        return self.query(q, n), time() - start
+
     def batch_query(self, X: numpy.array, n: int) -> None:
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
         results = numpy.empty((X.shape[0], n), dtype=int)
+        durations = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
+            futures = {executor.submit(self.query_timed, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
                 try:
-                    results[i] = future.result()
+                    result, duration = future.result()
+                    results[i] = result
+                    durations[i] = duration
                 except Exception as x2:
                     print(f"exception getting batch results: {x2}")
-        self.res = results
+        self.results = results
+        self.durations = durations
 
     def get_batch_results(self) -> numpy.array:
-        return self.res
+        return self.results
+    
+    def get_batch_latencies(self) -> numpy.array:
+        return self.durations
 
     def __str__(self):
         return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"

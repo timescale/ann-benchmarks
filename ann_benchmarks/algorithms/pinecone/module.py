@@ -7,6 +7,9 @@ import numpy
 from time import sleep
 
 
+MAX_THREADS = 16
+
+
 class Pinecone(BaseANN):
     def __init__(self, metric, api_key, environment, index_name, pods, pod_type, replicas):
         if metric == "angular":
@@ -60,7 +63,7 @@ class Pinecone(BaseANN):
             batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
             if len(batch) == 100 or i == total - 1:
                 print(f"{i}: upserting batch of {len(batch)} vectors")
-                index.upsert(vectors=batch, batch_size=len(batch), show_progress=True)
+                index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
                 batch: list[dict] = []
         print("index loaded")
         self._index = index
@@ -74,7 +77,7 @@ class Pinecone(BaseANN):
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         results = numpy.empty((X.shape[0], n), dtype=int)
-        with concurrent.futures.ThreadPoolExecutor(max_workers=32) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
             futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
