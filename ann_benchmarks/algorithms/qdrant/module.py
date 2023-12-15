@@ -39,17 +39,18 @@ class Qdrant(BaseANN):
         self.batch_latencies = []
 
         qdrant_client_params = {
-            #"url": "",
-            #"api_key": "",
-            "host": "localhost",
-            "port": 6333,
-            "grpc_port": 6334,
+            "url": "",
+            "api_key": "",
+            #"host": "localhost",
+            #"port": 6333,
+            #"grpc_port": 6334,
             "prefer_grpc": self._grpc,
-            "https": False,
+            #"https": False,
         }
         self._client = QdrantClient(**qdrant_client_params)
 
     def fit(self, X):
+        return
         if X.dtype != np.float32:
             X = X.astype(np.float32)
 
@@ -179,6 +180,7 @@ class Qdrant(BaseANN):
                 quantization=grpc.QuantizationSearchParams(
                     ignore=False,
                     rescore=self._search_params["rescore"],
+                    oversampling=3.0,
                 ),
             ),
         )

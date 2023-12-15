@@ -8,21 +8,21 @@ float:
     name: qdrant
     run_groups:
       default:
-        #args: [
-        #  ['scalar'], #quantization
-        #  [ 36 ], #m
-        #  [ 64 ], #ef_construct
-        #]
-        #query_args: [
-        #  [32], #hnsw_ef
-        #  [True], # re-score
-        #]
         args: [
-          ['none', 'scalar', 'binary'], #quantization
-          [ 8, 16, 24, 32, 40, 48, 64, 72 ], #m
-          [ 64, 128, 256, 512 ], #ef_construct
+          ['binary'], #quantization
+          [ 36 ], #m
+          [ 64 ], #ef_construct
         ]
         query_args: [
-          [null, 8, 16, 32, 64, 128, 256, 512, 768], #hnsw_ef
-          [True, False], # re-score
+          [ 32 ], #hnsw_ef
+          [True], # re-score
         ]
+        #args: [
+        #  ['none', 'scalar', 'binary'], #quantization
+        #  [ 8, 16, 24, 32, 40, 48, 64, 72 ], #m
+        #  [ 64, 128, 256, 512 ], #ef_construct
+        #]
+        #query_args: [
+        #  [null, 8, 16, 32, 64, 128, 256, 512, 768], #hnsw_ef
+        #  [True, False], # re-score
+        #]
