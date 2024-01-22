@@ -13,7 +13,7 @@ float:
             [80], # num_neighbors
             [120], # search_list_size
             [1.2], # max_alpha
-            [0], # pq_vector_length
+            [256], # pq_vector_length
             [25], # query_search_list_size
           ]
         query_args: [[25]] # query_search_list_size

@@ -14,12 +14,13 @@ import shutil
 import uuid
 from time import time
 
+EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
+QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
 MAX_BATCH_QUERY_THREADS = 16
 EMBEDDINGS_PER_COPY_BATCH = 5_000 # how many rows per COPY statement
-EMBEDDINGS_PER_CHUNK = 500_000 # how many rows per hypertable chunk
 START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc) # minimum time used for time column
 CHUNK_TIME_STEP = timedelta(days=1) # how much to increment the time column by for each chunk
 CHUNK_TIME_INTERVAL = "'1d'::interval"
@@ -56,10 +57,7 @@ class TSVector(BaseANN):
         self._pool : ConnectionPool = None
         self._log = Log()
         if metric == "angular":
-            #self._query: str = "select id from public.items order by embedding <=> %s limit %s"
-            self._query: str = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
-        #elif metric == "euclidean": not supported
-        #    self._query: str = "SELECT id FROM public.items ORDER BY embedding <-> %s LIMIT %s"
+            self._query: str = QUERY
         else:
             raise RuntimeError(f"unknown metric {metric}")
         print(f"query: {self._query}")
