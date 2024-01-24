@@ -15,7 +15,6 @@ float:
             [1.0], # max_alpha
             [1], # use_bq
             [0], # pq_vector_length
-            [25], # query_search_list_size
           ]
         query_args: [[25]] # query_search_list_size
       #tsvector2:
