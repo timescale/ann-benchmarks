@@ -15,7 +15,7 @@ import uuid
 from time import time
 
 EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
-QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
+QUERY="""with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 40) select id from x order by distance limit %s"""
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
@@ -46,14 +46,15 @@ class Log():
 
 class TSVector(BaseANN):
     def __init__(self, metric: str, connection_str: str, num_neighbors: int, search_list_size: int,
-                max_alpha: float, pq_vector_length: int, query_search_list_size: int):
+                max_alpha: float, use_bq: int , pq_vector_length: int):
         self._metric: str = metric
         self._connection_str: str = connection_str
         self._num_neighbors: int = num_neighbors
         self._search_list_size: int = search_list_size
         self._max_alpha: float = max_alpha
+        self._use_bq: bool = (use_bq == 1)
         self._pq_vector_length: int = pq_vector_length
-        self._query_search_list_size: Optional[int] = query_search_list_size if query_search_list_size > 0 else None
+        self._query_search_list_size: Optional[int] = None
         self._pool : ConnectionPool = None
         self._log = Log()
         if metric == "angular":
@@ -66,29 +67,28 @@ class TSVector(BaseANN):
         def configure(conn):
             register_vector(conn)
             if self._query_search_list_size is not None:
-                conn.execute("SET tsv.query_search_list_size = %d" % self._query_search_list_size)
-                print("SET tsv.query_search_list_size = %d" % self._query_search_list_size)
-                conn.execute("SET work_mem = '8GB'")
-                # disable parallel query execution
-                conn.execute("SET max_parallel_workers_per_gather = 0")
-                conn.execute("SET enable_seqscan=0")
-                conn.execute("SET jit = 'off'")
+                conn.execute("set tsv.query_search_list_size = %d" % self._query_search_list_size)
+                print("set tsv.query_search_list_size = %d" % self._query_search_list_size)
+            conn.execute("set work_mem = '8GB'")
+            conn.execute("set max_parallel_workers_per_gather = 0")
+            conn.execute("set enable_seqscan=0")
+            conn.execute("set jit = 'off'")
             conn.commit()
         self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
     def does_table_exist(self, conn: psycopg.Connection) -> bool:
         table_count = 0
         with conn.cursor() as cur:
-            cur.execute("SELECT count(*) FROM pg_class WHERE relname = 'items'")
+            cur.execute("select count(*) from pg_class where relname = 'items'")
             table_count = cur.fetchone()[0]
         return table_count > 0
         
     def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
             print("creating table...")
-            cur.execute(f"CREATE TABLE public.items (id int, t timestamptz, embedding vector({dimensions}))")
-            cur.execute("ALTER TABLE public.items ALTER COLUMN embedding SET STORAGE PLAIN")
-            cur.execute(f"SELECT create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
+            cur.execute(f"create table public.items (id int, t timestamptz, embedding vector({dimensions}))")
+            cur.execute("alter table public.items alter column embedding set storage plain")
+            cur.execute(f"select create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
             conn.commit()
 
     def load_table_serial(self, X: numpy.array) -> None:
@@ -105,7 +105,7 @@ class TSVector(BaseANN):
                 d = START_TIME - CHUNK_TIME_STEP
                 for b, batch in enumerate(batches):
                     print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
-                    with cur.copy("COPY public.items (id, t, embedding) FROM STDIN") as copy:
+                    with cur.copy("copy public.items (id, t, embedding) from stdin") as copy:
                         for v in batch:
                             i += 1
                             if i % EMBEDDINGS_PER_CHUNK == 0:
@@ -168,13 +168,17 @@ class TSVector(BaseANN):
     def index_table(self) -> None:
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
-                if self._pq_vector_length < 1:
-                    cur.execute(f"""CREATE INDEX ON ONLY public.items USING tsv (embedding) 
-                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
+                if self._use_bq:
+                    cur.execute(f"""create index on only public.items using tsv (embedding) 
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, use_bq=true)"""
+                    )
+                elif self._pq_vector_length < 1:
+                    cur.execute(f"""create index on only public.items using tsv (embedding) 
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                     )
                 else:
-                    cur.execute(f"""CREATE INDEX ON ONLY public.items USING tsv (embedding) 
-                        WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                    cur.execute(f"""create index on only public.items using tsv (embedding) 
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
                         max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
                     )
                 conn.commit()
@@ -183,13 +187,17 @@ class TSVector(BaseANN):
         try:
             with self._pool.connection() as conn:
                 with conn.cursor() as cur:
-                    if self._pq_vector_length < 1:
-                        cur.execute(f"""CREATE INDEX ON ONLY {chunk} USING tsv (embedding) 
-                            WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
+                    if self._use_bq:
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, use_bq=true)"""
+                        )
+                    elif self._pq_vector_length < 1:
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                         )
                     else:
-                        cur.execute(f"""CREATE INDEX ON ONLY {chunk} USING tsv (embedding) 
-                            WITH (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
                             max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
                         )
                     conn.commit()
@@ -288,4 +296,4 @@ class TSVector(BaseANN):
         return self.durations
 
     def __str__(self):
-        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"
+        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, use_bq={self._use_bq}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"
