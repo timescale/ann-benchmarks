@@ -12,7 +12,7 @@ import os
 import sys
 import shutil
 import uuid
-from time import time
+from time import time, perf_counter
 
 EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
 QUERY="""with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 40) select id from x order by distance limit %s"""
@@ -268,32 +268,36 @@ class TSVector(BaseANN):
                 cursor.execute(self._query, (q, n), binary=True, prepare=True)
                 return numpy.array([id for id, in cursor.fetchall()])
 
-    def query_timed(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
-        start = time()
-        return self.query(q, n), time() - start
+    #def query_timed(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
+    #    start = perf_counter()
+    #    r = self.query(q, n)
+    #    d = perf_counter() - start
+    #    return r, d
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
         results = numpy.empty((X.shape[0], n), dtype=int)
-        durations = numpy.empty(X.shape[0], dtype=float)
+        #durations = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {executor.submit(self.query_timed, q, n): i for i, q in enumerate(X)}
+            futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
+            #futures = {executor.submit(self.query_timed, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
                 try:
-                    result, duration = future.result()
+                    result = future.result()
+                    #result, duration = future.result()
                     results[i] = result
-                    durations[i] = duration
+                    #durations[i] = duration
                 except Exception as x2:
                     print(f"exception getting batch results: {x2}")
         self.results = results
-        self.durations = durations
+        #self.durations = durations
 
     def get_batch_results(self) -> numpy.array:
         return self.results
     
-    def get_batch_latencies(self) -> numpy.array:
-        return self.durations
+    #def get_batch_latencies(self) -> numpy.array:
+    #    return self.durations
 
     def __str__(self):
         return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, use_bq={self._use_bq}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"

@@ -18,3 +18,5 @@ results.csv
 venv
 
 .python-version
+
+.idea
