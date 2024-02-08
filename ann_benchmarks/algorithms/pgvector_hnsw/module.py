@@ -12,6 +12,7 @@ import os
 import sys
 import shutil
 
+LOAD_PARALLEL = False
 EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
 QUERY="""with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
@@ -80,6 +81,29 @@ class PGVectorHNSW(BaseANN):
             cur.execute(f"select create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
             conn.commit()
 
+    def load_table_binary(self, X: numpy.array) -> None:
+        batches: list[numpy.array] = None
+        if X.shape[0] < EMBEDDINGS_PER_COPY_BATCH:
+            batches = [X]
+        else:
+            splits = [x for x in range(0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
+            batches = numpy.split(X, splits)
+        print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
+        with self._pool.connection() as con:
+            with con.cursor(binary=True) as cur:
+                i = -1
+                d = START_TIME - CHUNK_TIME_STEP
+                for b, batch in enumerate(batches):
+                    print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
+                    with cur.copy("copy public.items (id, t, embedding) from stdin (format binary)") as cpy:
+                        cpy.set_types(['integer', 'timestamptz', 'vector'])
+                        for v in batch:
+                            i += 1
+                            if i % EMBEDDINGS_PER_CHUNK == 0:
+                                d = d + CHUNK_TIME_STEP
+                            cpy.write_row((i, d, v))
+                    con.commit()
+
     def load_table_serial(self, X: numpy.array) -> None:
         batches: list[numpy.array] = None
         if X.shape[0] < EMBEDDINGS_PER_COPY_BATCH:
@@ -127,10 +151,10 @@ class PGVectorHNSW(BaseANN):
         id = 0
         with self._pool.connection() as conn:
             id = self.log_start(conn, "loading table")
-        if shutil.which("timescaledb-parallel-copy") is None:
-            self.load_table_serial(X)
-        else:
+        if LOAD_PARALLEL and shutil.which("timescaledb-parallel-copy") is not None:
             self.load_table_parallel(X)
+        else:
+            self.load_table_binary(X)
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
 
