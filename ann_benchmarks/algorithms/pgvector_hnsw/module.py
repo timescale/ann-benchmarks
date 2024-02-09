@@ -242,7 +242,6 @@ class PGVectorHNSW(BaseANN):
             chunks = self.list_chunks(conn)
         if len(chunks) > 0:
             self.index_chunks(chunks)
-        #self.index_table()
 
     def set_query_arguments(self, ef_search):
         self._ef_search = ef_search
