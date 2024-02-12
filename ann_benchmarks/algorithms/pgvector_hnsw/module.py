@@ -240,8 +240,10 @@ class PGVectorHNSW(BaseANN):
         chunks: list[str] = None
         with self._pool.connection() as conn:
             chunks = self.list_chunks(conn)
-        if len(chunks) > 0:
+        while len(chunks) > 0:
             self.index_chunks(chunks)
+            with self._pool.connection() as conn:
+                chunks = self.list_chunks(conn)
 
     def set_query_arguments(self, ef_search):
         self._ef_search = ef_search
