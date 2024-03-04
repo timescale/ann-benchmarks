@@ -1,0 +1,19 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: PineconeServerless
+    disabled: false
+    docker_tag: ann-benchmarks-pinecone-serverless
+    module: ann_benchmarks.algorithms.pinecone_serverless
+    name: pinecone_serverless
+    run_groups:
+      pinecone1:
+        args: [
+            [""],
+            ["us-west-2-aws"],
+            ["index2"],
+          ]
+        query_args: [[10]]
+
+
+
