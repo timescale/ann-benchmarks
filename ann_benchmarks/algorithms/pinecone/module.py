@@ -3,6 +3,7 @@ import concurrent.futures
 from typing import Optional
 import psutil
 import pinecone
+from pinecone.grpc import PineconeGRPC
 import numpy
 from time import sleep
 
@@ -32,7 +33,7 @@ class Pinecone(BaseANN):
 
     def fit(self, X: numpy.array) -> None:
         print("initializing pinecone client...")
-        pc = pinecone.Pinecone(api_key=self._api_key)
+        pc = PineconeGRPC(api_key=self._api_key)
         dimension = X.shape[1]
         print(f"dimension: {dimension}")
         for idx in pc.list_indexes():
