@@ -56,13 +56,13 @@ class PineconeServerless(BaseANN):
         index = pc.Index(self._index_name)
         total = len(X)
         print(f"upserting {total} vectors...")
-        batch: list[dict] = []
+        batch: list[pinecone.Vector] = []
         for i, v in enumerate(X):
             batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
             if len(batch) == 100 or i == total - 1:
                 print(f"{i}: upserting batch of {len(batch)} vectors")
                 index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
-                batch: list[dict] = []
+                batch: list[pinecone.Vector] = []
         print("index loaded")
         self._index = index
 

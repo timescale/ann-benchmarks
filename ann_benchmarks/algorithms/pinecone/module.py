@@ -1,8 +1,8 @@
 from ..base.module import BaseANN
 import concurrent.futures
-from typing import Any, Dict, Optional
+from typing import Optional
 import psutil
-from pinecone import Pinecone, PodSpec, Vector
+import pinecone
 import numpy
 from time import sleep
 
@@ -32,8 +32,7 @@ class Pinecone(BaseANN):
 
     def fit(self, X: numpy.array) -> None:
         print("initializing pinecone client...")
-        pc = Pinecone(api_key=self._api_key)
-        #pinecone.init(api_key=self._api_key, environment=self._environment)
+        pc = pinecone.Pinecone(api_key=self._api_key)
         dimension = X.shape[1]
         print(f"dimension: {dimension}")
         for idx in pc.list_indexes():
@@ -46,7 +45,7 @@ class Pinecone(BaseANN):
                 name=self._index_name, 
                 dimension=dimension,
                 metric=self._metric,
-                spec=PodSpec(
+                spec=pinecone.PodSpec(
                     environment=self._environment,
                     replicas=self._replicas,
                     pod_type=self._pod_type,
@@ -57,7 +56,7 @@ class Pinecone(BaseANN):
                 name=self._index_name, 
                 dimension=dimension,
                 metric=self._metric,
-                spec=PodSpec(
+                spec=pinecone.PodSpec(
                     environment=self._environment,
                     pod_type=self._pod_type,
                     pods=self._pods,
@@ -72,13 +71,13 @@ class Pinecone(BaseANN):
         index = pc.Index(self._index_name)
         total = len(X)
         print(f"upserting {total} vectors...")
-        batch: list[Vector] = []
+        batch: list[pinecone.Vector] = []
         for i, v in enumerate(X):
-            batch.append(Vector(id = str(i), values=v.astype(float).tolist()))
+            batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
             if len(batch) == 100 or i == total - 1:
                 print(f"{i}: upserting batch of {len(batch)} vectors")
                 index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
-                batch: list[Vector] = []
+                batch: list[pinecone.Vector] = []
         print("index loaded")
         self._index = index
 
