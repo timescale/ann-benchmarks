@@ -2,7 +2,7 @@ from ..base.module import BaseANN
 import concurrent.futures
 from typing import Any, Dict, Optional
 import psutil
-import pinecone
+from pinecone import Pinecone, PodSpec, Vector
 import numpy
 from time import sleep
 
@@ -32,39 +32,53 @@ class Pinecone(BaseANN):
 
     def fit(self, X: numpy.array) -> None:
         print("initializing pinecone client...")
-        pinecone.init(api_key=self._api_key, environment=self._environment)
+        pc = Pinecone(api_key=self._api_key)
+        #pinecone.init(api_key=self._api_key, environment=self._environment)
         dimension = X.shape[1]
         print(f"dimension: {dimension}")
-        for idx in pinecone.list_indexes():
+        for idx in pc.list_indexes():
             if idx == self._index_name:
                 print(f"deleting existing index {self._index_name}...")
-                pinecone.delete_index(self._index_name)
+                pc.delete_index(self._index_name)
         print(f"creating index {self._index_name}...")
         if self._replicas > 0:
-            pinecone.create_index(name=self._index_name, dimension=dimension, 
-                                metric=self._metric, pods=self._pods, 
-                                pod_type=self._pod_type, replicas=self._replicas)
+            pc.create_index(
+                name=self._index_name, 
+                dimension=dimension,
+                metric=self._metric,
+                spec=PodSpec(
+                    environment=self._environment,
+                    replicas=self._replicas,
+                    pod_type=self._pod_type,
+                    pods=self._pods,
+                ))
         else:
-            pinecone.create_index(name=self._index_name, dimension=dimension, 
-                                metric=self._metric, pods=self._pods, 
-                                pod_type=self._pod_type)
+            pc.create_index(
+                name=self._index_name, 
+                dimension=dimension,
+                metric=self._metric,
+                spec=PodSpec(
+                    environment=self._environment,
+                    pod_type=self._pod_type,
+                    pods=self._pods,
+                ))
         print("waiting for index to be ready...")
         ready = False
         while not ready:
             sleep(5)
-            index = pinecone.describe_index(self._index_name)
+            index = pc.describe_index(self._index_name)
             ready = index.status['ready']
         print("upserting dataset...")
-        index = pinecone.Index(self._index_name)
+        index = pc.Index(self._index_name)
         total = len(X)
         print(f"upserting {total} vectors...")
-        batch: list[dict] = []
+        batch: list[Vector] = []
         for i, v in enumerate(X):
-            batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
+            batch.append(Vector(id = str(i), values=v.astype(float).tolist()))
             if len(batch) == 100 or i == total - 1:
                 print(f"{i}: upserting batch of {len(batch)} vectors")
                 index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
-                batch: list[dict] = []
+                batch: list[Vector] = []
         print("index loaded")
         self._index = index
 

@@ -11,12 +11,12 @@ MAX_THREADS = 16
 
 
 class PineconeServerless(BaseANN):
-    def __init__(self, metric, api_key, environment, index_name):
+    def __init__(self, metric, api_key, region, index_name):
         if metric == "angular":
             metric = "cosine"
         self._metric = metric
         self._api_key = api_key
-        self._environment = environment
+        self._region = region
         self._index_name = index_name
         self._query_search_list_size = None
 
@@ -43,7 +43,7 @@ class PineconeServerless(BaseANN):
             metric=self._metric,
             spec=pinecone.ServerlessSpec(
                 cloud='aws',
-                region=self._environment,
+                region=self._region,
             )
         )
         print("waiting for index to be ready...")

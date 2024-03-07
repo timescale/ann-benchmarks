@@ -10,7 +10,7 @@ float:
       pinecone1:
         args: [
             [""],
-            ["us-west-2-aws"],
+            ["us-west-2"],
             ["index2"],
           ]
         query_args: [[10]]
