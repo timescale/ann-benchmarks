@@ -69,6 +69,7 @@ class Pinecone(BaseANN):
             ready = index.status['ready']
         print("upserting dataset...")
         index = pc.Index(self._index_name)
+        exit(-1)
         total = len(X)
         print(f"upserting {total} vectors...")
         batch: list[pinecone.Vector] = []
