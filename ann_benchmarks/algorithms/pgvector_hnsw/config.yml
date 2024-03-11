@@ -13,4 +13,4 @@ float:
             [16], # m
             [64], # ef_construction
           ]
-        query_args: [[250]] # ef_search
+        query_args: [[100]] # ef_search

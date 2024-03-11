@@ -14,7 +14,8 @@ import shutil
 
 LOAD_PARALLEL = False
 EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
-QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
+QUERY = """select id from public.items order by embedding <=> %s limit %s"""
+#QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
