@@ -5,7 +5,7 @@ import psutil
 import pinecone
 from pinecone.grpc import PineconeGRPC
 import numpy
-from time import sleep
+from time import sleep, perf_counter
 
 
 MAX_THREADS = 16
@@ -70,7 +70,6 @@ class Pinecone(BaseANN):
             ready = index.status['ready']
         print("upserting dataset...")
         index = pc.Index(self._index_name)
-        exit(-1)
         total = len(X)
         print(f"upserting {total} vectors...")
         batch: list[pinecone.Vector] = []
@@ -83,27 +82,35 @@ class Pinecone(BaseANN):
         print("index loaded")
         self._index = index
 
-    def query(self, q: numpy.array, n: int) -> numpy.array:
+    def query(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
+        start = perf_counter()
         resp = self._index.query(vector=q.astype(float).tolist(), top_k=n, include_values=False)
         matches = []
         for match in resp['matches']:
             matches.append(int(match['id']))
-        return numpy.array(matches)
+        result = numpy.array(matches)
+        elapsed = perf_counter() - start
+        return result, elapsed
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         results = numpy.empty((X.shape[0], n), dtype=int)
+        latencies = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_THREADS) as executor:
             futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
                 try:
-                    results[i] = future.result()
+                    results[i], latencies[i] = future.result()
                 except Exception as x2:
                     print(f"exception getting batch results: {x2}")
-        self.res = results
+        self.results = results
+        self.latencies = latencies
 
     def get_batch_results(self) -> numpy.array:
-        return self.res
+        return self.results
+
+    def get_batch_latencies(self) -> numpy.array:
+        return self.latencies
 
     def set_query_arguments(self, query_search_list_size):
         self._query_search_list_size = query_search_list_size
