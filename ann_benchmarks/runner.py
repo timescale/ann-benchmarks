@@ -41,6 +41,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
     )
 
     best_search_time = float("inf")
+    best_qps = float("inf")
     for i in range(run_count):
         print("Run %d/%d..." % (i + 1, run_count))
         # a bit dumb but can't be a scalar since of Python's scoping rules
@@ -80,7 +81,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
                 )
             return (total, candidates)
 
-        def batch_query(X: numpy.array) -> List[Tuple[float, List[Tuple[int, float]]]]:
+        def batch_query(X: numpy.array) -> Tuple[List[Tuple[float, List[Tuple[int, float]]]], float]:
             """Executes a batch of queries on an instantiated, ANN algorithm.
 
             Args:
@@ -110,12 +111,13 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
                 [(int(idx), float(metrics[distance].distance(v, X_train[idx]))) for idx in single_results]  # noqa
                 for v, single_results in zip(X, results)
             ]
-            return [(latency, v) for latency, v in zip(batch_latencies, candidates)]
+            return ([(latency, v) for latency, v in zip(batch_latencies, candidates)], total)
 
         if batch:
-            results = batch_query(X_test)
+            (results, wall_time) = batch_query(X_test)
         else:
             results = [single_query(x) for x in X_test]
+            wall_time = sum(time for time, _ in results)
 
         total_time = sum(time for time, _ in results)
         total_candidates = sum(len(candidates) for _, candidates in results)
@@ -123,10 +125,14 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
         avg_candidates = total_candidates / len(X_test)
         best_search_time = min(best_search_time, search_time)
 
+        qps = len(X_test) / wall_time
+        best_qps = min(best_qps, qps)
+
     verbose = hasattr(algo, "query_verbose")
     attrs = {
         "batch_mode": batch,
         "best_search_time": best_search_time,
+        "best_qps": best_qps,
         "candidates": avg_candidates,
         "expect_extra": verbose,
         "name": str(algo),
