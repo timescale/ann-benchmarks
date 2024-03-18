@@ -11,6 +11,7 @@ import subprocess
 import os
 import sys
 import shutil
+from time import perf_counter
 
 LOAD_PARALLEL = False
 EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
@@ -256,28 +257,37 @@ class PGVectorHNSW(BaseANN):
     def get_memory_usage(self) -> Optional[float]:
         return psutil.Process().memory_info().rss / 1024
 
-    def query(self, q: numpy.array, n: int) -> numpy.array:
+    def query(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
+        start = perf_counter()
         with self._pool.connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute(self._query, (q, n), binary=True, prepare=True)
-                return numpy.array([id for id, in cursor.fetchall()])
+                result = numpy.array([id for id, in cursor.fetchall()])
+                elapsed = perf_counter() - start
+                return result, elapsed
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
         results = numpy.empty((X.shape[0], n), dtype=int)
+        latencies = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
                 try:
-                    result = future.result()
+                    result, latency = future.result()
                     results[i] = result
+                    latencies[i] = latency
                 except Exception as x2:
                     print(f"exception getting batch results: {x2}")
         self.results = results
+        self.latencies = latencies
 
     def get_batch_results(self) -> numpy.array:
         return self.results
-    
+
+    def get_batch_latencies(self) -> numpy.array:
+        return self.latencies
+
     def __str__(self):
         return f"PGVectorHNSW(m={self._m}, ef_construction={self._ef_construction}, ef_search={self._ef_search})"
