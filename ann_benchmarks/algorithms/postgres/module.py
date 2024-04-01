@@ -119,17 +119,16 @@ class Postgres(BaseANN):
         print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
         with self._pool.connection() as con:
             with con.cursor(binary=True) as cur:
-                i = -1
-                d = START_TIME - PARTITION_TIME_STEP
+                i = 0
                 for b, batch in enumerate(batches):
+                    partition = i // EMBEDDINGS_PER_PARTITION
+                    d = START_TIME + (PARTITION_TIME_STEP * partition)
                     partition = "public.items" + str(b).zfill(2)
                     print(f"copying batch number {b} of {batch.shape[0]} rows into {partition}")
                     with cur.copy(f"copy {partition} (id, t, embedding) from stdin (format binary)") as cpy:
                         cpy.set_types(['integer', 'timestamptz', 'vector'])
                         for v in batch:
                             i += 1
-                            if i % EMBEDDINGS_PER_PARTITION == 0:
-                                d = d + PARTITION_TIME_STEP
                             cpy.write_row((i, d, v))
                     con.commit()
 
