@@ -196,7 +196,6 @@ class Postgres(BaseANN):
         # have to create the extensions before starting the connection pool
         with psycopg.connect(self._connection_str) as conn:
             with conn.cursor() as cur:
-                cur.execute("create extension if not exists timescaledb")
                 cur.execute("create extension if not exists vector")
                 self.create_log_table(conn)
         self.start_pool()
