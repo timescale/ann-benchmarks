@@ -123,7 +123,7 @@ class Postgres(BaseANN):
                 for b, batch in enumerate(batches):
                     partition = i // EMBEDDINGS_PER_PARTITION
                     d = START_TIME + (PARTITION_TIME_STEP * partition)
-                    partition = "public.items" + str(i).zfill(2)
+                    partition = "public.items" + str(partition).zfill(2)
                     print(f"copying batch number {b} of {batch.shape[0]} rows into {partition}")
                     with cur.copy(f"copy {partition} (id, t, embedding) from stdin (format binary)") as cpy:
                         cpy.set_types(['integer', 'timestamptz', 'vector'])
