@@ -128,10 +128,10 @@ class Postgres(BaseANN):
                         cpy.set_types(['integer', 'timestamptz', 'vector'])
                         for v in batch:
                             i += 1
+                            if i % EMBEDDINGS_PER_PARTITION == 0:
+                                d = d + PARTITION_TIME_STEP
                             cpy.write_row((i, d, v))
                     con.commit()
-                    if i % EMBEDDINGS_PER_PARTITION == 0:
-                        d = d + PARTITION_TIME_STEP
 
     def load_table(self, X: numpy.array) -> None:
         id = 0
