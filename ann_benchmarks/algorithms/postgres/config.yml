@@ -1,0 +1,16 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: Postgres
+    disabled: false
+    docker_tag: ann-benchmarks-postgres
+    module: ann_benchmarks.algorithms.postgres
+    name: postgres
+    run_groups:
+      postgres:
+        args: [
+            ["postgres://ann:ann@localhost:5432/ann"],
+            [16], # m
+            [64], # ef_construction
+          ]
+        query_args: [[100]] # ef_search
