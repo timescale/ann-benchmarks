@@ -150,6 +150,14 @@ class Postgres(BaseANN):
                 inner join pg_class k
                 on (i.inhrelid = k.oid and k.relispartition)
                 inner join pg_namespace n on (k.relnamespace = n.oid)
+                where not exists
+                (
+                    select 1
+                    from pg_catalog.pg_indexes i
+                    where n.nspname = i.schemaname
+                    and k.relname = i.tablename
+                    and i.indexname like '%_embedding_%'
+                )
                 order by 1
                 """)
             return [row[0] for row in cur]
