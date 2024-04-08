@@ -65,7 +65,7 @@ class TSVector(BaseANN):
             if self._query_search_list_size is not None:
                 conn.execute("set tsv.query_search_list_size = %d" % self._query_search_list_size)
                 print("set tsv.query_search_list_size = %d" % self._query_search_list_size)
-            conn.execute("set tsv.query_resort = 25")
+            conn.execute("set tsv.query_rescore = 25")
             conn.execute("set work_mem = '8GB'")
             conn.execute("set max_parallel_workers_per_gather = 0")
             conn.execute("set enable_seqscan=0")
@@ -189,7 +189,7 @@ class TSVector(BaseANN):
             with conn.cursor() as cur:
                 if self._use_bq:
                     cur.execute(f"""create index on only public.items using tsv (embedding) 
-                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, use_bq=true)"""
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
                     )
                 elif self._pq_vector_length < 1:
                     cur.execute(f"""create index on only public.items using tsv (embedding) 
@@ -208,7 +208,7 @@ class TSVector(BaseANN):
                 with conn.cursor() as cur:
                     if self._use_bq:
                         cur.execute(f"""create index on only {chunk} using tsv (embedding) 
-                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, use_bq=true)"""
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
                         )
                     elif self._pq_vector_length < 1:
                         cur.execute(f"""create index on only {chunk} using tsv (embedding) 
