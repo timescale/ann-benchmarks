@@ -66,7 +66,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
                 candidates = algo.get_prepared_query_results()
             else:
                 start = time.time()
-                candidates = algo.query(v, count)
+                candidates, _ = algo.query(v, count)
                 total = time.time() - start
             candidates = [
                 (int(idx), float(metrics[distance].distance(v, X_train[idx]))) for idx in candidates  # noqa

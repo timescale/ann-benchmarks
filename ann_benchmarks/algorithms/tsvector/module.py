@@ -18,6 +18,15 @@ EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
 QUERY = """select id from public.items order by embedding <=> %s limit %s"""
 #QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
+CONNECTION_SETTINGS = [
+    "set tsv.query_rescore = 25;",
+    "set work_mem = '2GB';",
+    "set maintenance_work_mem = '8GB';"
+    "set max_parallel_workers_per_gather = 0;",
+    "set enable_seqscan=0;",
+    "set jit = 'off';",
+]
+
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
 MAX_BATCH_QUERY_THREADS = 16
@@ -65,11 +74,8 @@ class TSVector(BaseANN):
             if self._query_search_list_size is not None:
                 conn.execute("set tsv.query_search_list_size = %d" % self._query_search_list_size)
                 print("set tsv.query_search_list_size = %d" % self._query_search_list_size)
-            conn.execute("set tsv.query_rescore = 25")
-            conn.execute("set work_mem = '8GB'")
-            conn.execute("set max_parallel_workers_per_gather = 0")
-            conn.execute("set enable_seqscan=0")
-            conn.execute("set jit = 'off'")
+            for setting in CONNECTION_SETTINGS:
+                conn.execute(setting)
             conn.commit()
         self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
