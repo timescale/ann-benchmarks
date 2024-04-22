@@ -16,7 +16,7 @@ float:
             [1], # use_bq
             [0], # pq_vector_length
           ]
-        query_args: [[75]] # query_search_list_size
+        query_args: [[75, 150, 200, 300, 400, 500, 600, 700, 800], [75, 150, 200, 300, 400]] # query_search_list_size
       #tsvector2:
       #  args: [[50], [10], [1.2]]
       #  query_args: [[10, 50, 50]]

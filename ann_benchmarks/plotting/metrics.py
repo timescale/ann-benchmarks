@@ -27,7 +27,8 @@ def knn(dataset_distances, run_distances, count, metrics, epsilon=1e-3):
     if "knn" not in metrics:
         print("Computing knn metrics")
         knn_metrics = metrics.create_group("knn")
-        mean, std, recalls = get_recall_values(dataset_distances, run_distances, count, knn_threshold, epsilon)
+        mean, std, recalls = get_recall_values(
+            dataset_distances, run_distances, count, knn_threshold, epsilon)
         knn_metrics.attrs["mean"] = mean
         knn_metrics.attrs["std"] = std
         knn_metrics["recalls"] = recalls
@@ -41,7 +42,8 @@ def epsilon(dataset_distances, run_distances, count, metrics, epsilon=0.01):
     if s not in metrics:
         print("Computing epsilon metrics")
         epsilon_metrics = metrics.create_group(s)
-        mean, std, recalls = get_recall_values(dataset_distances, run_distances, count, epsilon_threshold, epsilon)
+        mean, std, recalls = get_recall_values(
+            dataset_distances, run_distances, count, epsilon_threshold, epsilon)
         epsilon_metrics.attrs["mean"] = mean
         epsilon_metrics.attrs["std"] = std
         epsilon_metrics["recalls"] = recalls
@@ -61,7 +63,8 @@ def rel(dataset_distances, run_distances, metrics):
         if total_closest_distance < 0.01:
             metrics.attrs["rel"] = float("inf")
         else:
-            metrics.attrs["rel"] = total_candidate_distance / total_closest_distance
+            metrics.attrs["rel"] = total_candidate_distance / \
+                total_closest_distance
     else:
         print("Found cached result")
     return metrics.attrs["rel"]
@@ -214,4 +217,11 @@ all_metrics = {
         / queries_per_second(true_distances, run_attrs),  # noqa
         "worst": float("inf"),
     },
+    "shared_buffers": {
+        "description": "Shared Buffers",
+        "function": lambda true_distances, run_distances, metrics, times, run_attrs: run_attrs.get(
+            "shared_buffers", 0
+        ),  # noqa
+        "worst": float("inf"),
+    }
 }

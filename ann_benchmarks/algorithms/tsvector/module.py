@@ -19,7 +19,6 @@ QUERY = """select id from public.items order by embedding <=> %s limit %s"""
 #QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
 CONNECTION_SETTINGS = [
-    "set tsv.query_rescore = 25;",
     "set work_mem = '2GB';",
     "set maintenance_work_mem = '8GB';"
     "set max_parallel_workers_per_gather = 0;",
@@ -49,6 +48,8 @@ class TSVector(BaseANN):
         self._use_bq: bool = (use_bq == 1)
         self._pq_vector_length: int = pq_vector_length
         self._query_search_list_size: Optional[int] = None
+        self._query_rescore: Optional[int] = None
+        self._query_shared_buffers = 0;
         self._pool : ConnectionPool = None
         if metric == "angular":
             self._query: str = QUERY
@@ -74,6 +75,9 @@ class TSVector(BaseANN):
             if self._query_search_list_size is not None:
                 conn.execute("set tsv.query_search_list_size = %d" % self._query_search_list_size)
                 print("set tsv.query_search_list_size = %d" % self._query_search_list_size)
+            if self._query_rescore is not None:
+                conn.execute("set tsv.query_rescore = %d" % self._query_rescore)
+                print("set tsv.query_rescore = %d" % self._query_rescore)
             for setting in CONNECTION_SETTINGS:
                 conn.execute(setting)
             conn.commit()
@@ -85,6 +89,24 @@ class TSVector(BaseANN):
             cur.execute("select count(*) from pg_class where relname = 'items'")
             table_count = cur.fetchone()[0]
         return table_count > 0
+    
+    def shared_buffers(self, conn: psycopg.Connection) -> bool:
+        shared_buffers = 0
+        with conn.cursor() as cur:
+            sql_query = QUERY % ("$1", "%2")
+            cur.execute(f"""
+                        select 
+                            shared_blks_hit + shared_blks_read
+                        from pg_stat_statements
+                        where queryid = (select queryid
+                        from pg_stat_statements
+                        where userid = (select oid from pg_authid where rolname = current_role)
+                        and query like '{sql_query}'
+                        );""")
+            res = cur.fetchone()
+            if res is not None:
+                shared_buffers = res[0]
+        return shared_buffers
         
     def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
@@ -276,8 +298,9 @@ class TSVector(BaseANN):
         if len(chunks) > 0:
             self.index_chunks(chunks)
 
-    def set_query_arguments(self, query_search_list_size):
+    def set_query_arguments(self, query_search_list_size, query_rescore):
         self._query_search_list_size = query_search_list_size
+        self._query_rescore = query_rescore
         #close and restart the pool to apply the new settings
         self._pool.close()
         self._pool = None
@@ -297,6 +320,10 @@ class TSVector(BaseANN):
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
+
+        with self._pool.connection() as conn:
+            shared_buffers_start = self.shared_buffers(conn)
+
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
@@ -312,6 +339,14 @@ class TSVector(BaseANN):
         self.results = results
         self.latencies = latencies
 
+        with self._pool.connection() as conn:
+            shared_buffers_end = self.shared_buffers(conn)
+        
+        self._query_shared_buffers = shared_buffers_end - shared_buffers_start
+
+    def get_additional(self):
+        return {"shared_buffers": self._query_shared_buffers}
+
     def get_batch_results(self) -> numpy.array:
         return self.results
 
@@ -319,4 +354,4 @@ class TSVector(BaseANN):
         return self.latencies
 
     def __str__(self):
-        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, use_bq={self._use_bq}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size})"
+        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, use_bq={self._use_bq}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size}, query_rescore={self._query_rescore})"
