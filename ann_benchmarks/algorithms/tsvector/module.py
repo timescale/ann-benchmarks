@@ -93,7 +93,7 @@ class TSVector(BaseANN):
     def shared_buffers(self, conn: psycopg.Connection) -> bool:
         shared_buffers = 0
         with conn.cursor() as cur:
-            sql_query = QUERY % ("$1", "%2")
+            sql_query = QUERY % ("$1", "$2")
             cur.execute(f"""
                         select 
                             shared_blks_hit + shared_blks_read
