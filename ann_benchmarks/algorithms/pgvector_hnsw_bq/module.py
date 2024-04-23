@@ -196,7 +196,7 @@ class PGVectorHNSWBQ(BaseANN):
                     from pg_catalog.pg_indexes i
                     where k.chunk_schema = i.schemaname
                     and k.chunk_name = i.tablename
-                    and i.indexname like '%_embedding_%'
+                    and i.indexname like '%_binary_quantize_%'
                 )
                 order by k.range_start
                 """)
