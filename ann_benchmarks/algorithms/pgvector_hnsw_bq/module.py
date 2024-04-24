@@ -30,7 +30,7 @@ CONNECTION_SETTINGS = [
     "set work_mem = '2GB';",
     "set maintenance_work_mem = '8GB';"
     "set max_parallel_workers_per_gather = 0;",
-    "set max_parallel_maintenance_workers = 7;"
+    "set max_parallel_maintenance_workers = 0;"
     "set enable_seqscan=0;",
     "set jit = 'off';",
 ]
@@ -81,9 +81,9 @@ class PGVectorHNSWBQ(BaseANN):
     def shared_buffers(self, conn: psycopg.Connection) -> bool:
         shared_buffers = 0
         with conn.cursor() as cur:
-            sql_query = self._query
-            sql_query = sql_query.replace("%(q)s", "$1")
-            sql_query = sql_query.replace("%(n)s", "$2")
+            # sql_query = self._query
+            # sql_query = sql_query.replace("%(q)s", "$1")
+            # sql_query = sql_query.replace("%(n)s", "$2")
             cur.execute(f"""
                         select 
                             shared_blks_hit + shared_blks_read
@@ -91,7 +91,7 @@ class PGVectorHNSWBQ(BaseANN):
                         where queryid = (select queryid
                         from pg_stat_statements
                         where userid = (select oid from pg_authid where rolname = current_role)
-                        and query like $${sql_query}$$
+                        and query = $$SELECT i.id FROM ( SELECT id, embedding <=> $1 AS distance FROM items ORDER BY binary_quantize(embedding)::bit(768) <~> binary_quantize($1) LIMIT $3 ) i ORDER BY i.distance LIMIT $2$$
                         );""")
             res = cur.fetchone()
             if res is not None:
