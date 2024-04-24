@@ -96,7 +96,7 @@ class Postgres(BaseANN):
                 shared_buffers = res[0]
         return shared_buffers
 
-    def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
+    def create_table(self, conn: psycopg.Connection, dimensions: int, vectors: int) -> None:
         with conn.cursor() as cur:
             print("creating table...")
             cur.execute(f"create table public.items (id int, t timestamptz, embedding vector({dimensions})) partition by range (t)")
