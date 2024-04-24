@@ -9,15 +9,10 @@ import psycopg
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
 from datetime import datetime, timezone, timedelta
-import subprocess
-import os
-import sys
-import shutil
 from time import perf_counter
 
 EMBEDDINGS_PER_PARTITION = 1_000_000 # how many rows per partition
 QUERY = """select id from public.items order by embedding <=> %s limit %s"""
-#QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
@@ -28,6 +23,15 @@ PARTITION_TIME_STEP = timedelta(days=1) # how much to increment the time column 
 PARTITION_TIME_INTERVAL = "'1d'::interval"
 
 assert(EMBEDDINGS_PER_COPY_BATCH <= EMBEDDINGS_PER_PARTITION)
+
+CONNECTION_SETTINGS = [
+    "set work_mem = '2GB';",
+    "set maintenance_work_mem = '8GB';"
+    "set max_parallel_workers_per_gather = 0;",
+    "set max_parallel_maintenance_workers = 0;"
+    "set enable_seqscan=0;",
+    "set jit = 'off';",
+]
 
 
 class Postgres(BaseANN):
@@ -62,10 +66,8 @@ class Postgres(BaseANN):
             if self._ef_search is not None:
                 conn.execute("set hnsw.ef_search = %d" % self._ef_search)
                 print("set hnsw.ef_search = %d" % self._ef_search)
-            conn.execute("set work_mem = '8GB'")
-            conn.execute("set max_parallel_workers_per_gather = 0")
-            conn.execute("set enable_seqscan=0")
-            conn.execute("set jit = 'off'")
+            for setting in CONNECTION_SETTINGS:
+                conn.execute(setting)
             conn.commit()
         self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
@@ -76,7 +78,27 @@ class Postgres(BaseANN):
             table_count = cur.fetchone()[0]
         return table_count > 0
 
-    def create_table(self, conn: psycopg.Connection, dimensions: int, vectors: int) -> None:
+    def shared_buffers(self, conn: psycopg.Connection) -> bool:
+        shared_buffers = 0
+        with conn.cursor() as cur:
+            # sql_query = self._query
+            # sql_query = sql_query.replace("%(q)s", "$1")
+            # sql_query = sql_query.replace("%(n)s", "$2")
+            cur.execute(f"""
+                        select 
+                            shared_blks_hit + shared_blks_read
+                        from pg_stat_statements
+                        where queryid = (select queryid
+                        from pg_stat_statements
+                        where userid = (select oid from pg_authid where rolname = current_role)
+                        and query = $$SELECT i.id FROM ( SELECT id, embedding <=> $1 AS distance FROM items ORDER BY binary_quantize(embedding)::bit(768) <~> binary_quantize($1) LIMIT $3 ) i ORDER BY i.distance LIMIT $2$$
+                        );""")
+            res = cur.fetchone()
+            if res is not None:
+                shared_buffers = res[0]
+        return shared_buffers
+
+    def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
             print("creating table...")
             cur.execute(f"create table public.items (id int, t timestamptz, embedding vector({dimensions})) partition by range (t)")
@@ -242,6 +264,10 @@ class Postgres(BaseANN):
 
     def batch_query(self, X: numpy.array, n: int) -> None:
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
+
+        with self._pool.connection() as conn:
+            shared_buffers_start = self.shared_buffers(conn)
+
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
@@ -256,6 +282,14 @@ class Postgres(BaseANN):
                     print(f"exception getting batch results: {x2}")
         self.results = results
         self.latencies = latencies
+
+        with self._pool.connection() as conn:
+            shared_buffers_end = self.shared_buffers(conn)
+
+        self._query_shared_buffers = shared_buffers_end - shared_buffers_start
+
+    def get_additional(self):
+        return {"shared_buffers": self._query_shared_buffers}
 
     def get_batch_results(self) -> numpy.array:
         return self.results
