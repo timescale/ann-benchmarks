@@ -81,9 +81,7 @@ class Postgres(BaseANN):
     def shared_buffers(self, conn: psycopg.Connection) -> bool:
         shared_buffers = 0
         with conn.cursor() as cur:
-            # sql_query = self._query
-            # sql_query = sql_query.replace("%(q)s", "$1")
-            # sql_query = sql_query.replace("%(n)s", "$2")
+            sql_query = QUERY % ("$1", "$2")
             cur.execute(f"""
                         select 
                             shared_blks_hit + shared_blks_read
@@ -91,7 +89,7 @@ class Postgres(BaseANN):
                         where queryid = (select queryid
                         from pg_stat_statements
                         where userid = (select oid from pg_authid where rolname = current_role)
-                        and query = $$SELECT i.id FROM ( SELECT id, embedding <=> $1 AS distance FROM items ORDER BY binary_quantize(embedding)::bit(768) <~> binary_quantize($1) LIMIT $3 ) i ORDER BY i.distance LIMIT $2$$
+                        and query like '{sql_query}'
                         );""")
             res = cur.fetchone()
             if res is not None:
