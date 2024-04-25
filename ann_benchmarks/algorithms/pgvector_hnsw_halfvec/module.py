@@ -287,7 +287,7 @@ class PGVectorHNSWHalfvec(BaseANN):
         start = perf_counter()
         with self._pool.connection() as conn:
             with conn.cursor() as cursor:
-                cursor.execute(self._query, {"q": q, "n": n}, binary=True, prepare=True)
+                cursor.execute(self._query, (q, n), binary=True, prepare=True)
                 result = numpy.array([id for id, in cursor.fetchall()])
                 elapsed = perf_counter() - start
                 return result, elapsed
