@@ -1,0 +1,16 @@
+float:
+  any:
+  - base_args: ['@metric']
+    constructor: PGVectorHNSWHalfvec
+    disabled: false
+    docker_tag: ann-benchmarks-pgvector-hnsw-halfvec
+    module: ann_benchmarks.algorithms.pgvector_hnsw_halfvec
+    name: pgvector_hnsw_halfvec
+    run_groups:
+      pgvector_hnsw_halfvec1:
+        args: [
+            ["postgres://ann:ann@localhost:5432/ann"],
+            [16], # m
+            [64], # ef_construction
+          ]
+        query_args: [[500, 600, 700, 800, 900, 1000, 1200, 1400]] # ef_search
