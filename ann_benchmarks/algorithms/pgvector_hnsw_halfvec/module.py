@@ -249,7 +249,7 @@ class PGVectorHNSWHalfvec(BaseANN):
 
     def fit(self, X: numpy.array) -> None:
         self._dimensions = int(X.shape[1])
-        self._query = f"""SELECT i.id FROM FROM items ORDER BY embedding::halfvec({self._dimensions}) <=> %s::halfvec({self._dimensions}) LIMIT %s"""
+        self._query = f"""SELECT i.id FROM public.items ORDER BY embedding::halfvec({self._dimensions}) <=> %s::halfvec({self._dimensions}) LIMIT %s"""
         print(self._query)
         # have to create the extensions before starting the connection pool
         with psycopg.connect(self._connection_str) as conn:
