@@ -11,7 +11,7 @@ from pgvector.psycopg import register_vector
 from datetime import datetime, timezone, timedelta
 from time import perf_counter
 
-EMBEDDINGS_PER_PARTITION = 1_000_000 # how many rows per partition
+EMBEDDINGS_PER_PARTITION = 10_000_000 # how many rows per partition
 QUERY = """select id from public.items order by embedding <=> %s limit %s"""
 
 MAX_DB_CONNECTIONS = 16
@@ -136,7 +136,8 @@ class Postgres(BaseANN):
         else:
             splits = [x for x in range(0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
             batches = numpy.split(X, splits)
-        print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
+        num_batches = len(batches)
+        print(f"copying {X.shape[0]} rows into table using {num_batches} batches...")
         with self._pool.connection() as con:
             with con.cursor(binary=True) as cur:
                 i = 0
@@ -144,7 +145,7 @@ class Postgres(BaseANN):
                     partition = i // EMBEDDINGS_PER_PARTITION
                     d = START_TIME + (PARTITION_TIME_STEP * partition)
                     partition = "public.items" + str(partition).zfill(2)
-                    print(f"copying batch number {b} of {batch.shape[0]} rows into {partition}")
+                    print(f"copying batch {b}/{num_batches} of {batch.shape[0]} rows into {partition}")
                     with cur.copy(f"copy {partition} (id, t, embedding) from stdin (format binary)") as cpy:
                         cpy.set_types(['integer', 'timestamptz', 'vector'])
                         for v in batch:
