@@ -1,13 +1,13 @@
 float:
   any:
   - base_args: ['@metric']
-    constructor: Postgres
+    constructor: PGVectorHNSWBQUnpartitioned
     disabled: false
-    docker_tag: ann-benchmarks-postgres
-    module: ann_benchmarks.algorithms.postgres
-    name: postgres
+    docker_tag: ann-benchmarks-pgvector-hnsw-bq-unpartitioned
+    module: ann_benchmarks.algorithms.pgvector_hnsw_bq_unpartitioned
+    name: pgvector_hnsw_bq_unpartitioned
     run_groups:
-      postgres:
+      pgvector_hnsw_bq_unpartitioned1:
         args: [
             ["postgres://ann:ann@localhost:5432/ann"],
             [16], # m
