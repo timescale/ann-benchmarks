@@ -14,9 +14,9 @@ import shutil
 from time import perf_counter
 
 LOAD_PARALLEL = False
-EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
+EMBEDDINGS_PER_CHUNK = 1_000_000  # how many rows per hypertable chunk
 QUERY = """select id from public.items order by embedding <=> %s limit %s"""
-#QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
+# QUERY = """with x as materialized (select id, embedding <=> %s as distance from public.items order by 2 limit 100) select id from x order by distance limit %s"""
 
 CONNECTION_SETTINGS = [
     "set work_mem = '2GB';",
@@ -29,17 +29,19 @@ CONNECTION_SETTINGS = [
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
 MAX_BATCH_QUERY_THREADS = 16
-EMBEDDINGS_PER_COPY_BATCH = 5_000 # how many rows per COPY statement
-START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc) # minimum time used for time column
-CHUNK_TIME_STEP = timedelta(days=1) # how much to increment the time column by for each chunk
+EMBEDDINGS_PER_COPY_BATCH = 5_000  # how many rows per COPY statement
+# minimum time used for time column
+START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc)
+# how much to increment the time column by for each chunk
+CHUNK_TIME_STEP = timedelta(days=1)
 CHUNK_TIME_INTERVAL = "'1d'::interval"
 
-assert(EMBEDDINGS_PER_COPY_BATCH <= EMBEDDINGS_PER_CHUNK)
+assert (EMBEDDINGS_PER_COPY_BATCH <= EMBEDDINGS_PER_CHUNK)
 
 
 class TSVector(BaseANN):
     def __init__(self, metric: str, connection_str: str, num_neighbors: int, search_list_size: int,
-                max_alpha: float, use_bq: int , pq_vector_length: int):
+                 max_alpha: float, use_bq: int, pq_vector_length: int):
         self._metric: str = metric
         self._connection_str: str = connection_str
         self._num_neighbors: int = num_neighbors
@@ -49,8 +51,8 @@ class TSVector(BaseANN):
         self._pq_vector_length: int = pq_vector_length
         self._query_search_list_size: Optional[int] = None
         self._query_rescore: Optional[int] = None
-        self._query_shared_buffers = 0;
-        self._pool : ConnectionPool = None
+        self._query_shared_buffers = 0
+        self._pool: ConnectionPool = None
         if metric == "angular":
             self._query: str = QUERY
         else:
@@ -62,40 +64,47 @@ class TSVector(BaseANN):
 
     def log_start(self, conn: psycopg.Connection, name: str) -> int:
         with conn.cursor() as cur:
-            cur.execute("insert into public.log (name) values (%s) returning id", (name, ))
+            cur.execute(
+                "insert into public.log (name) values (%s) returning id", (name, ))
             return int(cur.fetchone()[0])
 
     def log_stop(self, conn: psycopg.Connection, id: int) -> None:
         with conn.cursor() as cur:
-            cur.execute("update public.log set stop = clock_timestamp() where id = %s", (id,))
+            cur.execute(
+                "update public.log set stop = clock_timestamp() where id = %s", (id,))
 
     def start_pool(self):
         def configure(conn):
             register_vector(conn)
             if self._query_search_list_size is not None:
-                conn.execute("set tsv.query_search_list_size = %d" % self._query_search_list_size)
-                print("set tsv.query_search_list_size = %d" % self._query_search_list_size)
+                conn.execute("set tsv.query_search_list_size = %d" %
+                             self._query_search_list_size)
+                print("set tsv.query_search_list_size = %d" %
+                      self._query_search_list_size)
             if self._query_rescore is not None:
-                conn.execute("set tsv.query_rescore = %d" % self._query_rescore)
+                conn.execute("set tsv.query_rescore = %d" %
+                             self._query_rescore)
                 print("set tsv.query_rescore = %d" % self._query_rescore)
             for setting in CONNECTION_SETTINGS:
                 conn.execute(setting)
             conn.commit()
-        self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
+        self._pool = ConnectionPool(
+            self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
     def does_table_exist(self, conn: psycopg.Connection) -> bool:
         table_count = 0
         with conn.cursor() as cur:
-            cur.execute("select count(*) from pg_class where relname = 'items'")
+            cur.execute(
+                "select count(*) from pg_class where relname = 'items'")
             table_count = cur.fetchone()[0]
         return table_count > 0
-    
+
     def shared_buffers(self, conn: psycopg.Connection) -> bool:
         shared_buffers = 0
         with conn.cursor() as cur:
             sql_query = QUERY % ("$1", "$2")
             cur.execute(f"""
-                        select 
+                        select
                             shared_blks_hit + shared_blks_read
                         from pg_stat_statements
                         where queryid = (select queryid
@@ -107,13 +116,16 @@ class TSVector(BaseANN):
             if res is not None:
                 shared_buffers = res[0]
         return shared_buffers
-        
+
     def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
             print("creating table...")
-            cur.execute(f"create table public.items (id int, t timestamptz, embedding vector({dimensions}))")
-            cur.execute("alter table public.items alter column embedding set storage plain")
-            cur.execute(f"select create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
+            cur.execute(
+                f"create table public.items (id int, t timestamptz, embedding vector({dimensions}))")
+            cur.execute(
+                "alter table public.items alter column embedding set storage plain")
+            cur.execute(
+                f"select create_hypertable('public.items'::regclass, 't'::name, chunk_time_interval=>{CHUNK_TIME_INTERVAL})")
             conn.commit()
 
     def load_table_binary(self, X: numpy.array) -> None:
@@ -121,15 +133,18 @@ class TSVector(BaseANN):
         if X.shape[0] < EMBEDDINGS_PER_COPY_BATCH:
             batches = [X]
         else:
-            splits = [x for x in range(0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
+            splits = [x for x in range(
+                0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
             batches = numpy.split(X, splits)
-        print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
+        print(
+            f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
         with self._pool.connection() as con:
             with con.cursor(binary=True) as cur:
                 i = -1
                 d = START_TIME - CHUNK_TIME_STEP
                 for b, batch in enumerate(batches):
-                    print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
+                    print(
+                        f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
                     with cur.copy("copy public.items (id, t, embedding) from stdin (format binary)") as cpy:
                         cpy.set_types(['integer', 'timestamptz', 'vector'])
                         for v in batch:
@@ -144,15 +159,18 @@ class TSVector(BaseANN):
         if X.shape[0] < EMBEDDINGS_PER_COPY_BATCH:
             batches = [X]
         else:
-            splits = [x for x in range(0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
+            splits = [x for x in range(
+                0, X.shape[0], EMBEDDINGS_PER_COPY_BATCH)][1:]
             batches = numpy.split(X, splits)
-        print(f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
+        print(
+            f"copying {X.shape[0]} rows into table using {len(batches)} batches...")
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 i = -1
                 d = START_TIME - CHUNK_TIME_STEP
                 for b, batch in enumerate(batches):
-                    print(f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
+                    print(
+                        f"copying batch number {b} of {batch.shape[0]} rows into chunk {d}")
                     with cur.copy("copy public.items (id, t, embedding) from stdin") as copy:
                         for v in batch:
                             i += 1
@@ -166,7 +184,8 @@ class TSVector(BaseANN):
         i = -1
         d = START_TIME - CHUNK_TIME_STEP
         cmd = f"""timescaledb-parallel-copy -connection '{self._connection_str}' -workers {MAX_DB_CONNECTIONS} -batch-size {EMBEDDINGS_PER_COPY_BATCH} -columns 'id,t,embedding' -schema public -table items -log-batches"""
-        p = subprocess.Popen(args=cmd, stdin=subprocess.PIPE, stdout=sys.stdout, stderr=subprocess.STDOUT, text=True, shell=True, env=os.environ)
+        p = subprocess.Popen(args=cmd, stdin=subprocess.PIPE, stdout=sys.stdout,
+                             stderr=subprocess.STDOUT, text=True, shell=True, env=os.environ)
         for v in X:
             i += 1
             if i > 0 and i % EMBEDDINGS_PER_COPY_BATCH == 0:
@@ -216,18 +235,18 @@ class TSVector(BaseANN):
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 if self._use_bq:
-                    cur.execute(f"""create index on only public.items using tsv (embedding) 
+                    cur.execute(f"""create index on only public.items using tsv (embedding)
                         with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
-                    )
+                                )
                 elif self._pq_vector_length < 1:
-                    cur.execute(f"""create index on only public.items using tsv (embedding) 
+                    cur.execute(f"""create index on only public.items using tsv (embedding)
                         with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
-                    )
+                                )
                 else:
-                    cur.execute(f"""create index on only public.items using tsv (embedding) 
-                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                    cur.execute(f"""create index on only public.items using tsv (embedding)
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size},
                         max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
-                    )
+                                )
                 conn.commit()
 
     def index_chunk(self, chunk: str) -> Optional[Exception]:
@@ -235,18 +254,18 @@ class TSVector(BaseANN):
             with self._pool.connection() as conn:
                 with conn.cursor() as cur:
                     if self._use_bq:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
                             with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
-                        )
+                                    )
                     elif self._pq_vector_length < 1:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
                             with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
-                        )
+                                    )
                     else:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding) 
-                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, 
+                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size},
                             max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
-                        )
+                                    )
                     conn.commit()
         except Exception as x:
             return x
@@ -261,16 +280,19 @@ class TSVector(BaseANN):
         threads = min(MAX_CREATE_INDEX_THREADS, len(chunks))
         print(f"creating indexes using {threads} threads...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            future_to_chunk = {executor.submit(self.index_chunk, chunk): chunk for chunk in chunks}
+            future_to_chunk = {executor.submit(
+                self.index_chunk, chunk): chunk for chunk in chunks}
             for future in concurrent.futures.as_completed(future_to_chunk):
                 chunk = future_to_chunk[future]
                 try:
                     x = future.result()
                 except Exception as x2:
-                    print(f"creating index on chunk {chunk} hit an exception: {x2}")
+                    print(
+                        f"creating index on chunk {chunk} hit an exception: {x2}")
                 else:
                     if x is not None:
-                        print(f"creating index on chunk {chunk} hit an exception: {x}")
+                        print(
+                            f"creating index on chunk {chunk} hit an exception: {x}")
                     else:
                         print(f"created index on {chunk}")
         print("finished creating indexes")
@@ -282,10 +304,11 @@ class TSVector(BaseANN):
         with psycopg.connect(self._connection_str) as conn:
             with conn.cursor() as cur:
                 cur.execute("create extension if not exists timescaledb")
-                cur.execute("create extension if not exists timescale_vector cascade")
+                cur.execute(
+                    "create extension if not exists timescale_vector cascade")
                 self.create_log_table(conn)
         self.start_pool()
-        table_exists:bool = False
+        table_exists: bool = False
         with self._pool.connection() as conn:
             table_exists = self.does_table_exist(conn)
             if not table_exists:
@@ -301,7 +324,7 @@ class TSVector(BaseANN):
     def set_query_arguments(self, query_search_list_size, query_rescore):
         self._query_search_list_size = query_search_list_size
         self._query_rescore = query_rescore
-        #close and restart the pool to apply the new settings
+        # close and restart the pool to apply the new settings
         self._pool.close()
         self._pool = None
         self.start_pool()
@@ -327,7 +350,8 @@ class TSVector(BaseANN):
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {executor.submit(self.query, q, n): i for i, q in enumerate(X)}
+            futures = {executor.submit(
+                self.query, q, n): i for i, q in enumerate(X)}
             for future in concurrent.futures.as_completed(futures):
                 i = futures[future]
                 try:
@@ -341,7 +365,7 @@ class TSVector(BaseANN):
 
         with self._pool.connection() as conn:
             shared_buffers_end = self.shared_buffers(conn)
-        
+
         self._query_shared_buffers = shared_buffers_end - shared_buffers_start
 
     def get_additional(self):
@@ -354,4 +378,4 @@ class TSVector(BaseANN):
         return self.latencies
 
     def __str__(self):
-        return f"TSVector(num_neighbors={self._num_neighbors}, search_list_size={self._search_list_size}, max_alpha={self._max_alpha}, use_bq={self._use_bq}, pq_vector_length={self._pq_vector_length}, query_search_list_size={self._query_search_list_size}, query_rescore={self._query_rescore})"
+        return f"algorithm=TSVector num_neighbors={self._num_neighbors} search_list_size={self._search_list_size} max_alpha={self._max_alpha} use_bq={self._use_bq} pq_vector_length={self._pq_vector_length} query_search_list_size={self._query_search_list_size} query_rescore={self._query_rescore}"

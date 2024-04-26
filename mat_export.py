@@ -28,5 +28,5 @@ if __name__ == "__main__":
                 dfs.append(res)
     if len(dfs) > 0:
         for res in dfs:
-            print("%s %s %12.3f %12.3f %12.3f" % (
-                res["algorithm"], res["parameters"], res["k-nn"], res["qps"], res["shared_buffers"]))
+            print("%s recall=%.3f qps=%.0f shared_buffers=%.0f shared_buffers_per_query=%.0f p50=%.3f p99=%.3f" % (
+                res["parameters"], res["k-nn"], res["qps"], res["shared_buffers"], res["shared_buffers_per_query"], res["p50"], res["p99"]))
