@@ -35,6 +35,7 @@ START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc)
 # how much to increment the time column by for each chunk
 CHUNK_TIME_STEP = timedelta(days=1)
 CHUNK_TIME_INTERVAL = "'1d'::interval"
+STORAGE_LAYOUT = "memory_optimized"
 
 assert (EMBEDDINGS_PER_COPY_BATCH <= EMBEDDINGS_PER_CHUNK)
 
@@ -236,7 +237,7 @@ class TSVector(BaseANN):
             with conn.cursor() as cur:
                 if self._use_bq:
                     cur.execute(f"""create index on only public.items using tsv (embedding)
-                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
+                        with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='{STORAGE_LAYOUT}')"""
                                 )
                 elif self._pq_vector_length < 1:
                     cur.execute(f"""create index on only public.items using tsv (embedding)
@@ -255,7 +256,7 @@ class TSVector(BaseANN):
                 with conn.cursor() as cur:
                     if self._use_bq:
                         cur.execute(f"""create index on only {chunk} using tsv (embedding)
-                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='io_optimized')"""
+                            with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha}, storage_layout='{STORAGE_LAYOUT}')"""
                                     )
                     elif self._pq_vector_length < 1:
                         cur.execute(f"""create index on only {chunk} using tsv (embedding)
