@@ -230,5 +230,12 @@ all_metrics = {
             "shared_buffers", 0
         ) / len(run_distances),  # noqa
         "worst": float("inf"),
-    }
+    },
+    "shared_buffers_read": {
+        "description": "Shared buffers read",
+        "function": lambda true_distances, run_distances, metrics, times, run_attrs: run_attrs.get(
+            "shared_buffers_read", 0
+        ),  # noqa
+        "worst": float("inf"),
+    },
 }
