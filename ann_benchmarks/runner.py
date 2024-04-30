@@ -135,13 +135,13 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
         best_search_time = min(best_search_time, search_time)
 
         qps = len(X_test) / wall_time
-        best_qps = min(best_qps, qps)
+        last_qps = qps
 
     verbose = hasattr(algo, "query_verbose")
     attrs = {
         "batch_mode": batch,
         "best_search_time": best_search_time,
-        "best_qps": best_qps,
+        "best_qps": last_qps,
         "candidates": avg_candidates,
         "expect_extra": verbose,
         "name": str(algo),
