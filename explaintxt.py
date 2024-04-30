@@ -13,7 +13,7 @@ QUERY = "select id from public.items order by embedding <=> %s limit %s"
 LIMIT = 10
 SETTINGS = [
     "set local tsv.query_search_list_size = 25;",
-    "set local tsv.query_resort = 25;",
+    "set local tsv.query_rescore = 25;",
     "set local work_mem = '512MB';",
     "set local maintenance_work_mem = '8GB';",
     "set local max_parallel_workers_per_gather = 0;",
@@ -45,4 +45,3 @@ with open('explain.txt', 'w') as w:
     w.write(explain)
     w.flush()
     w.close()
-

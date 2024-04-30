@@ -20,7 +20,7 @@ from .distance import dataset_transform, metrics
 from .results import store_results
 
 
-def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.array, distance: str, count: int, 
+def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.array, distance: str, count: int,
                          run_count: int, batch: bool) -> Tuple[dict, list]:
     """Run a search query using the provided algorithm and report the results.
 
@@ -55,7 +55,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
 
             Returns:
                 List[Tuple[float, List[Tuple[int, float]]]]: Tuple containing
-                    1. Total time taken for each query 
+                    1. Total time taken for each query
                     2. Result pairs consisting of (point index, distance to candidate data )
             """
             if prepared_queries:
@@ -73,7 +73,8 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
             ]
             n_items_processed[0] += 1
             if n_items_processed[0] % 1000 == 0:
-                print("Processed %d/%d queries..." % (n_items_processed[0], len(X_test)))
+                print("Processed %d/%d queries..." %
+                      (n_items_processed[0], len(X_test)))
             if len(candidates) > count:
                 print(
                     "warning: algorithm %s returned %d results, but count"
@@ -89,7 +90,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
 
             Returns:
                 List[Tuple[float, List[Tuple[int, float]]]]: List of tuples, each containing
-                    1. Total time taken for each query 
+                    1. Total time taken for each query
                     2. Result pairs consisting of (point index, distance to candidate data )
             """
             # TODO: consider using a dataclass to represent return value.
@@ -114,7 +115,15 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
             return ([(latency, v) for latency, v in zip(batch_latencies, candidates)], total)
 
         if batch:
-            (results, wall_time) = batch_query(X_test)
+            if i < run_count - 1:
+                size = len(X_test)
+                print("Testing with the training set...",
+                      i*size, "->", (i+1)*size)
+                test = X_train[i*size:(i+1)*size]
+            else:
+                print("Testing with the test set...")
+                test = X_test
+            (results, wall_time) = batch_query(test)
         else:
             results = [single_query(x) for x in X_test]
             wall_time = sum(time for time, _ in results)
@@ -126,13 +135,13 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
         best_search_time = min(best_search_time, search_time)
 
         qps = len(X_test) / wall_time
-        best_qps = min(best_qps, qps)
+        last_qps = qps
 
     verbose = hasattr(algo, "query_verbose")
     attrs = {
         "batch_mode": batch,
         "best_search_time": best_search_time,
-        "best_qps": best_qps,
+        "best_qps": last_qps,
         "candidates": avg_candidates,
         "expect_extra": verbose,
         "name": str(algo),
@@ -167,8 +176,8 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple[
     print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
     print(f"Got {len(X_test)} queries")
 
-    #train, test = dataset_transform(D)
-    #return train, test, distance
+    # train, test = dataset_transform(D)
+    # return train, test, distance
     return X_train, X_test, distance
 
 
@@ -220,14 +229,17 @@ function"""
 
         build_time, index_size = build_index(algo, X_train)
 
-        query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
+        query_argument_groups = definition.query_argument_groups or [
+            []]  # Ensure at least one iteration
 
         for pos, query_arguments in enumerate(query_argument_groups, 1):
-            print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
+            print(
+                f"Running query argument group {pos} of {len(query_argument_groups)}...")
             if query_arguments:
                 algo.set_query_arguments(*query_arguments)
-            
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+
+            descriptor, results = run_individual_query(
+                algo, X_train, X_test, distance, count, run_count, batch)
 
             descriptor.update({
                 "build_time": build_time,
@@ -236,12 +248,14 @@ function"""
                 "dataset": dataset_name
             })
 
-            store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
+            store_results(dataset_name, count, definition,
+                          query_arguments, descriptor, results, batch)
     finally:
         algo.done()
 
+
 def run_from_cmdline():
-    """Calls the function `run` using arguments from the command line. See `ArgumentParser` for 
+    """Calls the function `run` using arguments from the command line. See `ArgumentParser` for
     arguments, all run it with `--help`.
     """
     parser = argparse.ArgumentParser(
@@ -251,12 +265,15 @@ def run_from_cmdline():
 
 """
     )
-    parser.add_argument("--dataset", choices=DATASETS.keys(), help="Dataset to benchmark on.", required=True)
-    parser.add_argument("--algorithm", help="Name of algorithm for saving the results.", required=True)
+    parser.add_argument("--dataset", choices=DATASETS.keys(),
+                        help="Dataset to benchmark on.", required=True)
+    parser.add_argument(
+        "--algorithm", help="Name of algorithm for saving the results.", required=True)
     parser.add_argument(
         "--module", help='Python module containing algorithm. E.g. "ann_benchmarks.algorithms.annoy"', required=True
     )
-    parser.add_argument("--constructor", help='Constructer to load from modulel. E.g. "Annoy"', required=True)
+    parser.add_argument(
+        "--constructor", help='Constructer to load from modulel. E.g. "Annoy"', required=True)
     parser.add_argument(
         "--count", help="K: Number of nearest neighbours for the algorithm to return.", required=True, type=int
     )
@@ -271,8 +288,10 @@ def run_from_cmdline():
         help='If flag included, algorithms will be run in batch mode, rather than "individual query" mode.',
         action="store_true",
     )
-    parser.add_argument("build", help='JSON of arguments to pass to the constructor. E.g. ["angular", 100]')
-    parser.add_argument("queries", help="JSON of arguments to pass to the queries. E.g. [100]", nargs="*", default=[])
+    parser.add_argument(
+        "build", help='JSON of arguments to pass to the constructor. E.g. ["angular", 100]')
+    parser.add_argument(
+        "queries", help="JSON of arguments to pass to the queries. E.g. [100]", nargs="*", default=[])
     args = parser.parse_args()
 
     algo_args = json.loads(args.build)
@@ -358,7 +377,8 @@ def run_docker(
         return_value = container.wait(timeout=timeout)
         _handle_container_return_value(return_value, container, logger)
     except Exception as e:
-        logger.error("Container.wait for container %s failed with exception", container.short_id)
+        logger.error(
+            "Container.wait for container %s failed with exception", container.short_id)
         logger.error(str(e))
     finally:
         logger.info("Removing container")
@@ -381,7 +401,8 @@ def _handle_container_return_value(
     base_msg = f"Child process for container {container.short_id} "
     msg = base_msg + "returned exit code {}"
 
-    if isinstance(return_value, dict):  # The return value from container.wait changes from int to dict in docker 3.0.0
+    # The return value from container.wait changes from int to dict in docker 3.0.0
+    if isinstance(return_value, dict):
         error_msg = return_value.get("Error", "")
         exit_code = return_value["StatusCode"]
         msg = msg.format(f"{exit_code} with message {error_msg}")

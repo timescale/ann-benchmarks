@@ -10,7 +10,7 @@ float:
       tsvector1:
         args: [
             ["postgres://ann:ann@localhost:5432/ann"],
-            [38], # num_neighbors
+            [50], # num_neighbors
             [100], # search_list_size
             [1.2], # max_alpha
             [1], # use_bq
