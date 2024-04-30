@@ -89,7 +89,7 @@ class Postgres(BaseANN):
                         from pg_stat_statements
                         where queryid = (select queryid
                         from pg_stat_statements
-                        where userid = (select oid from pg_authid where rolname = current_role)
+                        where userid = (select oid from pg_roles where rolname = current_role)
                         and query like '{sql_query}'
                         );""")
             res = cur.fetchone()
