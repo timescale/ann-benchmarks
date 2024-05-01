@@ -84,22 +84,25 @@ class PGVectorHNSWBQ(BaseANN):
             table_count = cur.fetchone()[0]
         return table_count > 0
 
-    def shared_buffers(self, conn: psycopg.Connection) -> bool:
-        shared_buffers = 0
+    def shared_buffers(self, conn: psycopg.Connection):
+        shared_buffers_hit = 0
+        shared_buffers_read = 0
         with conn.cursor() as cur:
+            sql_query = "SELECT i.id FROM ( SELECT id, embedding <=> $1 AS distance FROM items ORDER BY binary_quantize(embedding)::bit(768) <~> binary_quantize($1) LIMIT $3 ) i ORDER BY i.distance LIMIT $2"
             cur.execute(f"""
-                select 
-                    shared_blks_hit + shared_blks_read
-                from pg_stat_statements
-                where queryid = (select queryid
-                from pg_stat_statements
-                where userid = (select oid from pg_authid where rolname = current_role)
-                and query = $$SELECT i.id FROM ( SELECT id, embedding <=> $1 AS distance FROM items ORDER BY binary_quantize(embedding)::bit(768) <~> binary_quantize($1) LIMIT $3 ) i ORDER BY i.distance LIMIT $2$$
-                );""")
+                        select
+                            shared_blks_hit, shared_blks_read
+                        from pg_stat_statements
+                        where queryid = (select queryid
+                        from pg_stat_statements
+                        where userid = (select oid from pg_authid where rolname = current_role)
+                        and query like $${sql_query}$$
+                        );""")
             res = cur.fetchone()
             if res is not None:
-                shared_buffers = res[0]
-        return shared_buffers
+                shared_buffers_hit = res[0]
+                shared_buffers_read = res[1]
+        return shared_buffers_hit, shared_buffers_read
 
     def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
@@ -291,7 +294,8 @@ class PGVectorHNSWBQ(BaseANN):
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
 
         with self._pool.connection() as conn:
-            shared_buffers_start = self.shared_buffers(conn)
+            shared_buffers_start_hit, shared_buffers_start_read = self.shared_buffers(
+                conn)
 
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
@@ -309,12 +313,17 @@ class PGVectorHNSWBQ(BaseANN):
         self.latencies = latencies
 
         with self._pool.connection() as conn:
-            shared_buffers_end = self.shared_buffers(conn)
+            shared_buffers_end_hit, shared_buffers_end_read = self.shared_buffers(
+                conn)
 
-        self._query_shared_buffers = shared_buffers_end - shared_buffers_start
+        self._query_shared_buffers_hit = shared_buffers_end_hit - shared_buffers_start_hit
+        self._query_shared_buffers_read = shared_buffers_end_read - shared_buffers_start_read
 
     def get_additional(self):
-        return {"shared_buffers": self._query_shared_buffers}
+        return {"shared_buffers": self._query_shared_buffers_hit + self._query_shared_buffers_read,
+                "shared_buffers_hit": self._query_shared_buffers_hit,
+                "shared_buffers_read": self._query_shared_buffers_read
+                }
 
     def get_batch_results(self) -> numpy.array:
         return self.results
