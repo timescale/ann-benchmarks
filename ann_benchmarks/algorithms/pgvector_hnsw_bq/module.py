@@ -7,14 +7,9 @@ import psycopg
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
 from datetime import datetime, timezone, timedelta
-import subprocess
-import os
-import sys
-import shutil
 from time import perf_counter
 
-LOAD_PARALLEL = False
-EMBEDDINGS_PER_CHUNK = 1_000_000 # how many rows per hypertable chunk
+EMBEDDINGS_PER_CHUNK = 10_000_000 # how many rows per hypertable chunk
 PREWARM = True
 
 MAX_DB_CONNECTIONS = 16
@@ -162,14 +157,6 @@ class PGVectorHNSWBQ(BaseANN):
                 """)
             return [row[0] for row in cur]
 
-    def index_table(self) -> None:
-        with self._pool.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(f"""create index on only public.items using hnsw ((binary_quantize(embedding)::bit({self._dimensions})) bit_hamming_ops)
-                    with (m = {self._m}, ef_construction = {self._ef_construction})"""
-                )
-                conn.commit()
-
     def index_chunk(self, chunk: str) -> Optional[Exception]:
         try:
             with self._pool.connection() as conn:
@@ -206,11 +193,6 @@ class PGVectorHNSWBQ(BaseANN):
         print("finished creating indexes")
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
-
-    def reset_pg_stat_statements(self):
-        with self._pool.connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("select pg_stat_statements_reset()")
 
     def fit(self, X: numpy.array) -> None:
         self._dimensions = int(X.shape[1])
@@ -279,7 +261,7 @@ class PGVectorHNSWBQ(BaseANN):
             self.prewarm_index(conn)
 
     def get_memory_usage(self) -> Optional[float]:
-        return psutil.Process().memory_info().rss / 1024
+        return None
 
     def query(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
         start = perf_counter()
