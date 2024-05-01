@@ -356,9 +356,6 @@ class TSVector(BaseANN):
             chunks = self.list_chunks(conn)
         if len(chunks) > 0:
             self.index_chunks(chunks)
-        with self._pool.connection() as conn:
-            self.prewarm_heap(conn)
-            self.prewarm_index(conn)
 
     def set_query_arguments(self, query_search_list_size, query_rescore):
         self._query_search_list_size = query_search_list_size
@@ -367,6 +364,9 @@ class TSVector(BaseANN):
         self._pool.close()
         self._pool = None
         self.start_pool()
+        with self._pool.connection() as conn:
+            self.prewarm_heap(conn)
+            self.prewarm_index(conn)
 
     def get_memory_usage(self) -> Optional[float]:
         return psutil.Process().memory_info().rss / 1024
