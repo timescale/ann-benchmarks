@@ -2,7 +2,6 @@ from ann_benchmarks.algorithms.base.module import BaseANN
 import numpy
 import concurrent.futures
 from typing import Optional
-import psutil
 import psycopg
 from psycopg_pool import ConnectionPool
 from pgvector.psycopg import register_vector
@@ -261,7 +260,7 @@ class PGVectorHNSWBQ(BaseANN):
             self.prewarm_index(conn)
 
     def get_memory_usage(self) -> Optional[float]:
-        return None
+        return 0.0
 
     def query(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
         start = perf_counter()
