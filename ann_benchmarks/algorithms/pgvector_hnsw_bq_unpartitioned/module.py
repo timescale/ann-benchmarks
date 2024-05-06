@@ -14,6 +14,7 @@ MAX_DB_CONNECTIONS = 16
 MAX_BATCH_QUERY_THREADS = 16
 EMBEDDINGS_PER_COPY_BATCH = 5_000 # how many rows per COPY statement
 START_TIME = datetime(2000, 1, 1, tzinfo=timezone.utc) # minimum time used for time column
+PREWARM = True
 
 CONNECTION_SETTINGS = [
     "set work_mem = '2GB';",
@@ -75,11 +76,12 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         return table_count > 0
 
     def shared_buffers(self, conn: psycopg.Connection) -> bool:
-        shared_buffers = 0
+        shared_buffers_hit = 0
+        shared_buffers_read = 0
         with conn.cursor() as cur:
             cur.execute(f"""
                 select 
-                    shared_blks_hit + shared_blks_read
+                    shared_blks_hit, shared_blks_read
                 from pg_stat_statements
                 where queryid = (select queryid
                 from pg_stat_statements
@@ -88,8 +90,9 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
                 );""")
             res = cur.fetchone()
             if res is not None:
-                shared_buffers = res[0]
-        return shared_buffers
+                shared_buffers_hit = res[0]
+                shared_buffers_read = res[1]
+        return shared_buffers_hit, shared_buffers_read
 
     def create_table(self, conn: psycopg.Connection, dimensions: int) -> None:
         with conn.cursor() as cur:
@@ -155,6 +158,28 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
 
+    def prewarm_heap(self, conn: psycopg.Connection) -> None:
+        if PREWARM:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"select pg_prewarm('public.items'::regclass, mode=>'buffer')")
+                cur.fetchall()
+
+    def prewarm_index(self, conn: psycopg.Connection) -> None:
+        if PREWARM:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    select format($$%I.%I$$, x.schemaname, x.indexname)
+                    from pg_catalog.pg_indexes x
+                    where x.indexname ilike '%_binary_quantize_%'
+                    and x.tablename = 'items'""")
+                chunks = [row[0] for row in cur]
+                for chunk_index in chunks:
+                    print(f"prewarming chunk index {chunk_index}")
+                    cur.execute(
+                        f"select pg_prewarm('{chunk_index}'::regclass, mode=>'buffer')")
+                    cur.fetchall()
+
     def fit(self, X: numpy.array) -> None:
         self._dimensions = int(X.shape[1])
         # have to create the extensions before starting the connection pool
@@ -185,6 +210,9 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         self._pool.close()
         self._pool = None
         self.start_pool()
+        with self._pool.connection() as conn:
+            self.prewarm_heap(conn)
+            self.prewarm_index(conn)
 
     def get_memory_usage(self) -> Optional[float]:
         return psutil.Process().memory_info().rss / 1024
@@ -202,7 +230,8 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
 
         with self._pool.connection() as conn:
-            shared_buffers_start = self.shared_buffers(conn)
+            shared_buffers_start_hit, shared_buffers_start_read = self.shared_buffers(
+                conn)
 
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
@@ -220,12 +249,17 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         self.latencies = latencies
 
         with self._pool.connection() as conn:
-            shared_buffers_end = self.shared_buffers(conn)
+            shared_buffers_end_hit, shared_buffers_end_read = self.shared_buffers(
+                conn)
 
-        self._query_shared_buffers = shared_buffers_end - shared_buffers_start
+        self._query_shared_buffers_hit = shared_buffers_end_hit - shared_buffers_start_hit
+        self._query_shared_buffers_read = shared_buffers_end_read - shared_buffers_start_read
 
     def get_additional(self):
-        return {"shared_buffers": self._query_shared_buffers}
+        return {"shared_buffers": self._query_shared_buffers_hit + self._query_shared_buffers_read,
+                "shared_buffers_hit": self._query_shared_buffers_hit,
+                "shared_buffers_read": self._query_shared_buffers_read
+                }
 
     def get_batch_results(self) -> numpy.array:
         return self.results
