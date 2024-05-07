@@ -13,6 +13,7 @@ from time import perf_counter
 
 EMBEDDINGS_PER_PARTITION = 10_000_000 # how many rows per partition
 QUERY = """select id from public.items order by embedding <=> %s limit %s"""
+PREWARM = True
 
 MAX_DB_CONNECTIONS = 16
 MAX_CREATE_INDEX_THREADS = 16
@@ -42,6 +43,8 @@ class Postgres(BaseANN):
         self._m: int = m
         self._ef_construction: int = ef_construction
         self._ef_search: Optional[int] = None
+        self._query_shared_buffers_hit = 0
+        self._query_shared_buffers_read = 0
         self._pool : ConnectionPool = None
         if metric == "angular":
             self._query: str = QUERY
@@ -54,12 +57,14 @@ class Postgres(BaseANN):
 
     def log_start(self, conn: psycopg.Connection, name: str) -> int:
         with conn.cursor() as cur:
-            cur.execute("insert into public.log (name) values (%s) returning id", (name, ))
+            cur.execute(
+                "insert into public.log (name) values (%s) returning id", (name, ))
             return int(cur.fetchone()[0])
 
     def log_stop(self, conn: psycopg.Connection, id: int) -> None:
         with conn.cursor() as cur:
-            cur.execute("update public.log set stop = clock_timestamp() where id = %s", (id,))
+            cur.execute(
+                "update public.log set stop = clock_timestamp() where id = %s", (id,))
 
     def start_pool(self):
         def configure(conn):
@@ -70,22 +75,25 @@ class Postgres(BaseANN):
             for setting in CONNECTION_SETTINGS:
                 conn.execute(setting)
             conn.commit()
-        self._pool = ConnectionPool(self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
+        self._pool = ConnectionPool(
+            self._connection_str, min_size=1, max_size=MAX_DB_CONNECTIONS, configure=configure)
 
     def does_table_exist(self, conn: psycopg.Connection) -> bool:
         table_count = 0
         with conn.cursor() as cur:
-            cur.execute("select count(*) from pg_class where relname = 'items'")
+            cur.execute(
+                "select count(*) from pg_class where relname = 'items'")
             table_count = cur.fetchone()[0]
         return table_count > 0
 
-    def shared_buffers(self, conn: psycopg.Connection) -> bool:
-        shared_buffers = 0
+    def shared_buffers(self, conn: psycopg.Connection):
+        shared_buffers_hit = 0
+        shared_buffers_read = 0
         with conn.cursor() as cur:
             sql_query = QUERY % ("$1", "$2")
             cur.execute(f"""
-                        select 
-                            shared_blks_hit + shared_blks_read
+                        select
+                            shared_blks_hit, shared_blks_read
                         from pg_stat_statements
                         where queryid = (select queryid
                         from pg_stat_statements
@@ -94,8 +102,9 @@ class Postgres(BaseANN):
                         );""")
             res = cur.fetchone()
             if res is not None:
-                shared_buffers = res[0]
-        return shared_buffers
+                shared_buffers_hit = res[0]
+                shared_buffers_read = res[1]
+        return shared_buffers_hit, shared_buffers_read
 
     def create_table(self, conn: psycopg.Connection, dimensions: int, vectors: int) -> None:
         with conn.cursor() as cur:
@@ -221,6 +230,41 @@ class Postgres(BaseANN):
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
 
+    def prewarm_heap(self, conn: psycopg.Connection) -> None:
+        if PREWARM:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    select format('%I.%I', kn.nspname, k.relname)
+                    from pg_class p
+                    inner join pg_inherits i on (p.oid = i.inhparent)
+                    inner join pg_class k on (k.oid = i.inhrelid)
+                    inner join pg_namespace kn on (k.relnamespace = kn.oid)
+                    inner join pg_namespace pn on (p.relnamespace = pn.oid)
+                    where pn.nspname = 'public'
+                    and p.relname = 'items'
+                    """)
+                chunks = [row[0] for row in cur]
+                for chunk in chunks:
+                    print(f"prewarming chunk heap {chunk}")
+                    cur.execute(
+                        f"select pg_prewarm('{chunk}'::regclass, mode=>'buffer')")
+                    cur.fetchall()
+
+    def prewarm_index(self, conn: psycopg.Connection) -> None:
+        if PREWARM:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    select format($$%I.%I$$, x.schemaname, x.indexname)
+                    from pg_catalog.pg_indexes x
+                    where x.indexname ilike '%_embedding_%'
+                    and x.tablename = 'items'""")
+                chunks = [row[0] for row in cur]
+                for chunk_index in chunks:
+                    print(f"prewarming chunk index {chunk_index}")
+                    cur.execute(
+                        f"select pg_prewarm('{chunk_index}'::regclass, mode=>'buffer')")
+                    cur.fetchall()
+
     def fit(self, X: numpy.array) -> None:
         # have to create the extensions before starting the connection pool
         with psycopg.connect(self._connection_str) as conn:
@@ -249,6 +293,9 @@ class Postgres(BaseANN):
         self._pool.close()
         self._pool = None
         self.start_pool()
+        with self._pool.connection() as conn:
+            self.prewarm_heap(conn)
+            self.prewarm_index(conn)
 
     def get_memory_usage(self) -> Optional[float]:
         return psutil.Process().memory_info().rss / 1024
@@ -266,7 +313,8 @@ class Postgres(BaseANN):
         threads = min(MAX_BATCH_QUERY_THREADS, X.size)
 
         with self._pool.connection() as conn:
-            shared_buffers_start = self.shared_buffers(conn)
+            shared_buffers_start_hit, shared_buffers_start_read = self.shared_buffers(
+                conn)
 
         results = numpy.empty((X.shape[0], n), dtype=int)
         latencies = numpy.empty(X.shape[0], dtype=float)
@@ -284,12 +332,17 @@ class Postgres(BaseANN):
         self.latencies = latencies
 
         with self._pool.connection() as conn:
-            shared_buffers_end = self.shared_buffers(conn)
+            shared_buffers_end_hit, shared_buffers_end_read = self.shared_buffers(
+                conn)
 
-        self._query_shared_buffers = shared_buffers_end - shared_buffers_start
+        self._query_shared_buffers_hit = shared_buffers_end_hit - shared_buffers_start_hit
+        self._query_shared_buffers_read = shared_buffers_end_read - shared_buffers_start_read
 
     def get_additional(self):
-        return {"shared_buffers": self._query_shared_buffers}
+        return {"shared_buffers": self._query_shared_buffers_hit + self._query_shared_buffers_read,
+                "shared_buffers_hit": self._query_shared_buffers_hit,
+                "shared_buffers_read": self._query_shared_buffers_read
+                }
 
     def get_batch_results(self) -> numpy.array:
         return self.results

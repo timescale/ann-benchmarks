@@ -109,14 +109,14 @@ class TSVector(BaseANN):
         with conn.cursor() as cur:
             sql_query = QUERY % ("$1", "$2")
             cur.execute(f"""
-                        select
-                            shared_blks_hit, shared_blks_read
-                        from pg_stat_statements
-                        where queryid = (select queryid
-                        from pg_stat_statements
-                        where userid = (select oid from pg_authid where rolname = current_role)
-                        and query like '{sql_query}'
-                        );""")
+                select
+                    shared_blks_hit, shared_blks_read
+                from pg_stat_statements
+                where queryid = (select queryid
+                from pg_stat_statements
+                where userid = (select oid from pg_roles where rolname = current_role)
+                and query like '{sql_query}'
+                );""")
             res = cur.fetchone()
             if res is not None:
                 shared_buffers_hit = res[0]
