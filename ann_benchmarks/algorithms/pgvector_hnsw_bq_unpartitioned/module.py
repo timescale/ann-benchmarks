@@ -129,6 +129,7 @@ class PGVectorHNSWBQUnpartitioned(BaseANN):
         self.load_table_binary(X)
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
+            conn.execute("analyze")
 
     def does_index_exist(self, conn: psycopg.Connection) -> bool:
         index_count = 0

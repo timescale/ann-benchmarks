@@ -13,4 +13,4 @@ float:
             [16], # m
             [64], # ef_construction
           ]
-        query_args: [[500, 600, 700, 800, 900, 1000, 1200, 1400]] # ef_search
+        query_args: [[500, 600, 700, 800, 900, 1000]] # ef_search

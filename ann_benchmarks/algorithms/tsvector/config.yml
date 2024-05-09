@@ -17,7 +17,7 @@ float:
             [0], # pq_vector_length
             [0], # num_bits_per_dimension-  0 is for default
           ]
-        query_args: [[75, 150, 200, 300, 400, 500, 600, 700, 800], [75, 150, 200, 300, 400]] # query_search_list_size
+        query_args: [[10, 75], [75, 300, 400]] # query_search_list_size, query rescore
       #tsvector2:
       #  args: [[50], [10], [1.2]]
       #  query_args: [[10, 50, 50]]

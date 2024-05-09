@@ -217,6 +217,7 @@ class TSVector(BaseANN):
             self.load_table_binary(X)
         with self._pool.connection() as conn:
             self.log_stop(conn, id)
+            conn.execute("analyze")
 
     def list_chunks(self, conn: psycopg.Connection) -> list[str]:
         with conn.cursor() as cur:
