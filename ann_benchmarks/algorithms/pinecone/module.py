@@ -7,7 +7,8 @@ from pinecone.grpc import PineconeGRPC
 import numpy
 from time import sleep, perf_counter
 
-
+CREATE_INDEX = False
+LOAD_INDEX = False
 MAX_THREADS = 16
 
 
@@ -34,52 +35,54 @@ class Pinecone(BaseANN):
     def fit(self, X: numpy.array) -> None:
         print("initializing pinecone client...")
         pc = PineconeGRPC(api_key=self._api_key)
-        dimension = X.shape[1]
-        print(f"dimension: {dimension}")
-        for idx in pc.list_indexes():
-            if idx == self._index_name:
-                print(f"deleting existing index {self._index_name}...")
-                pc.delete_index(self._index_name)
-        print(f"creating index {self._index_name}...")
-        if self._replicas > 0:
-            pc.create_index(
-                name=self._index_name, 
-                dimension=dimension,
-                metric=self._metric,
-                spec=pinecone.PodSpec(
-                    environment=self._environment,
-                    replicas=self._replicas,
-                    pod_type=self._pod_type,
-                    pods=self._pods,
-                ))
-        else:
-            pc.create_index(
-                name=self._index_name, 
-                dimension=dimension,
-                metric=self._metric,
-                spec=pinecone.PodSpec(
-                    environment=self._environment,
-                    pod_type=self._pod_type,
-                    pods=self._pods,
-                ))
-        print("waiting for index to be ready...")
-        ready = False
-        while not ready:
-            sleep(5)
-            index = pc.describe_index(self._index_name)
-            ready = index.status['ready']
-        print("upserting dataset...")
+        if CREATE_INDEX:
+            dimension = X.shape[1]
+            print(f"dimension: {dimension}")
+            for idx in pc.list_indexes():
+                if idx == self._index_name:
+                    print(f"deleting existing index {self._index_name}...")
+                    pc.delete_index(self._index_name)
+            print(f"creating index {self._index_name}...")
+            if self._replicas > 0:
+                pc.create_index(
+                    name=self._index_name,
+                    dimension=dimension,
+                    metric=self._metric,
+                    spec=pinecone.PodSpec(
+                        environment=self._environment,
+                        replicas=self._replicas,
+                        pod_type=self._pod_type,
+                        pods=self._pods,
+                    ))
+            else:
+                pc.create_index(
+                    name=self._index_name,
+                    dimension=dimension,
+                    metric=self._metric,
+                    spec=pinecone.PodSpec(
+                        environment=self._environment,
+                        pod_type=self._pod_type,
+                        pods=self._pods,
+                    ))
+            print("waiting for index to be ready...")
+            ready = False
+            while not ready:
+                sleep(5)
+                index = pc.describe_index(self._index_name)
+                ready = index.status['ready']
         index = pc.Index(self._index_name)
-        total = len(X)
-        print(f"upserting {total} vectors...")
-        batch: list[pinecone.Vector] = []
-        for i, v in enumerate(X):
-            batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
-            if len(batch) == 100 or i == total - 1:
-                print(f"{i}: upserting batch of {len(batch)} vectors")
-                index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
-                batch: list[pinecone.Vector] = []
-        print("index loaded")
+        if LOAD_INDEX:
+            print("upserting dataset...")
+            total = len(X)
+            print(f"upserting {total} vectors...")
+            batch: list[pinecone.Vector] = []
+            for i, v in enumerate(X):
+                batch.append(pinecone.Vector(id = str(i), values=v.astype(float).tolist()))
+                if len(batch) == 100 or i == total - 1:
+                    print(f"{i}: upserting batch of {len(batch)} vectors")
+                    index.upsert(vectors=batch, batch_size=len(batch), show_progress=False)
+                    batch: list[pinecone.Vector] = []
+            print("index loaded")
         self._index = index
 
     def query(self, q: numpy.array, n: int) -> tuple[numpy.array, float]:
