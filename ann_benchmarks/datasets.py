@@ -609,7 +609,7 @@ def cohere_wikipedia_22_12(out_fn, n, test_size, distance):
     ds = datasets[0] if len(datasets) == 1 else concatenate_datasets(datasets)
     print(f"final dataset size: {ds.shape[0]}")
     print("splitting training/testing sets...")
-    train, test = train_test_split(ds, test_size=test_size, random_state=42)
+    train, test = train_test_split(ds, test_size=int(test_size), random_state=42)
     train = train["emb"]
     test = test["emb"]
     print(f"writing output...")
@@ -653,6 +653,7 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     #"cohere-wikipedia-22-12-50M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 50_000_000, 5000, "euclidean"),
     #"cohere-wikipedia-22-12-100M-euclidean": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000, "euclidean"),
     "cohere-wikipedia-22-12-10k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000, 100, "angular"),
+    "cohere-wikipedia-22-12-30k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 30_000, 100, "angular"),
     "cohere-wikipedia-22-12-100k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000, 1000, "angular"),
     "cohere-wikipedia-22-12-500k-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 500_000, 5000, "angular"),
     "cohere-wikipedia-22-12-1M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 1_000_000, 10_000, "angular"),
