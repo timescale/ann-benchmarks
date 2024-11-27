@@ -342,7 +342,7 @@ class TSVector(BaseANN):
             with conn.cursor() as cur:
                 cur.execute("create extension if not exists timescaledb")
                 cur.execute(
-                    "create extension if not exists timescale_vector cascade")
+                    "create extension if not exists vectorscale cascade")
                 self.create_log_table(conn)
         self.start_pool()
         table_exists: bool = False
