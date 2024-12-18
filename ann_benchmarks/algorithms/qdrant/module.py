@@ -50,7 +50,6 @@ class Qdrant(BaseANN):
         self._client = QdrantClient(**qdrant_client_params)
 
     def fit(self, X):
-        return
         if X.dtype != np.float32:
             X = X.astype(np.float32)
 
