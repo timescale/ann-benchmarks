@@ -45,7 +45,7 @@ class Qdrant(BaseANN):
             #"port": 6333,
             #"grpc_port": 6334,
             "prefer_grpc": self._grpc,
-            #"https": False,
+            "https": False,
         }
         self._client = QdrantClient(**qdrant_client_params)
 
