@@ -76,17 +76,17 @@ class Qdrant(BaseANN):
             collection_name=self._collection_name,
             shard_number=2,
             vectors_config=VectorParams(size=X.shape[1], distance=self._distances_mapping[self._metric], on_disk=True),
-            optimizers_config=OptimizersConfigDiff(
-                default_segment_number=2,
-                memmap_threshold=20000,
-                indexing_threshold=0,
-            ),
+            # optimizers_config=OptimizersConfigDiff(
+            #     default_segment_number=2,
+            #     memmap_threshold=20000,
+            #     indexing_threshold=0,
+            # ),
             quantization_config=quantization_config,
             # TODO: benchmark this as well
-            hnsw_config=HnswConfigDiff(
-                ef_construct=self._ef_construct,
-                m=self._m,
-            ),
+            # hnsw_config=HnswConfigDiff(
+            #     ef_construct=self._ef_construct,
+            #     m=self._m,
+            # ),
             timeout=TIMEOUT,
         )
         print("collection recreated")
@@ -174,14 +174,14 @@ class Qdrant(BaseANN):
             limit=n,
             with_payload=grpc.WithPayloadSelector(enable=False),
             with_vectors=grpc.WithVectorsSelector(enable=False),
-            params=grpc.SearchParams(
-                hnsw_ef=self._search_params["hnsw_ef"],
-                quantization=grpc.QuantizationSearchParams(
-                    ignore=False,
-                    rescore=self._search_params["rescore"],
-                    oversampling=3.0,
-                ),
-            ),
+            # params=grpc.SearchParams(
+            #     hnsw_ef=self._search_params["hnsw_ef"],
+            #     quantization=grpc.QuantizationSearchParams(
+            #         ignore=False,
+            #         rescore=self._search_params["rescore"],
+            #         oversampling=3.0,
+            #     ),
+            # ),
         )
 
         search_result = self._client.grpc_points.Search(search_request, timeout=TIMEOUT)
