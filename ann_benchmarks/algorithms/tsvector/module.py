@@ -80,15 +80,15 @@ class TSVector(BaseANN):
     def start_pool(self):
         def configure(conn):
             register_vector(conn)
-            if self._query_search_list_size is not None:
-                conn.execute("set tsv.query_search_list_size = %d" %
-                             self._query_search_list_size)
-                print("set tsv.query_search_list_size = %d" %
-                      self._query_search_list_size)
-            if self._query_rescore is not None:
-                conn.execute("set tsv.query_rescore = %d" %
-                             self._query_rescore)
-                print("set tsv.query_rescore = %d" % self._query_rescore)
+            #if self._query_search_list_size is not None:
+            #    conn.execute("set tsv.query_search_list_size = %d" %
+            #                 self._query_search_list_size)
+            #    print("set tsv.query_search_list_size = %d" %
+            #          self._query_search_list_size)
+            #if self._query_rescore is not None:
+            #    conn.execute("set tsv.query_rescore = %d" %
+            #                 self._query_rescore)
+            #    print("set tsv.query_rescore = %d" % self._query_rescore)
             for setting in CONNECTION_SETTINGS:
                 conn.execute(setting)
             conn.commit()
@@ -242,16 +242,16 @@ class TSVector(BaseANN):
         with self._pool.connection() as conn:
             with conn.cursor() as cur:
                 if self._use_bq:
-                    cur.execute(f"""create index on only public.items using tsv (embedding)
+                    cur.execute(f"""create index on only public.items using diskann (embedding vector_cosine_ops)
                         with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha},
                           num_bits_per_dimension={self._num_bits_per_dimension}, storage_layout='{STORAGE_LAYOUT}')"""
                                 )
                 elif self._pq_vector_length < 1:
-                    cur.execute(f"""create index on only public.items using tsv (embedding)
+                    cur.execute(f"""create index on only public.items using diskann (embedding vector_cosine_ops)
                         with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                                 )
                 else:
-                    cur.execute(f"""create index on only public.items using tsv (embedding)
+                    cur.execute(f"""create index on only public.items using diskann (embedding vector_cosine_ops)
                         with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size},
                         max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
                                 )
@@ -262,16 +262,16 @@ class TSVector(BaseANN):
             with self._pool.connection() as conn:
                 with conn.cursor() as cur:
                     if self._use_bq:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
+                        cur.execute(f"""create index on only {chunk} using diskann (embedding vector_cosine_ops)
                             with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha},
                             num_bits_per_dimension={self._num_bits_per_dimension}, storage_layout='{STORAGE_LAYOUT}')"""
                                     )
                     elif self._pq_vector_length < 1:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
+                        cur.execute(f"""create index on only {chunk} using diskann (embedding vector_cosine_ops)
                             with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size}, max_alpha={self._max_alpha})""",
                                     )
                     else:
-                        cur.execute(f"""create index on only {chunk} using tsv (embedding)
+                        cur.execute(f"""create index on only {chunk} using diskann (embedding vector_cosine_ops)
                             with (num_neighbors = {self._num_neighbors}, search_list_size = {self._search_list_size},
                             max_alpha = {self._max_alpha}, use_pq=true, pq_vector_length = {self._pq_vector_length})"""
                                     )
