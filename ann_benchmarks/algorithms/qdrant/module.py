@@ -2,7 +2,8 @@ from time import sleep, time
 from typing import Iterable, List, Any
 
 import numpy as np
-from qdrant_client import QdrantClient
+import concurrent.futures
+from qdrant_client import QdrantClient, AsyncQdrantClient
 from qdrant_client import grpc
 from qdrant_client.http.models import (
     CollectionStatus,
@@ -22,6 +23,7 @@ from ..base.module import BaseANN
 
 TIMEOUT = 30
 BATCH_SIZE = 128
+MAX_BATCH_QUERY_THREADS = 16
 
 
 class Qdrant(BaseANN):
@@ -48,8 +50,11 @@ class Qdrant(BaseANN):
             "https": False,
         }
         self._client = QdrantClient(**qdrant_client_params)
+        self._async_clients = [AsyncQdrantClient(**qdrant_client_params) for _ in range(0, MAX_BATCH_QUERY_THREADS)]
+        self._cur_async_client = 0
 
     def fit(self, X):
+        return # don't rebuild index now
         if X.dtype != np.float32:
             X = X.astype(np.float32)
 
@@ -168,31 +173,33 @@ class Qdrant(BaseANN):
         self._search_params["rescore"] = rescore
 
     def query(self, q, n):
-        search_request = grpc.SearchPoints(
-            collection_name=self._collection_name,
-            vector=q.tolist(),
-            limit=n,
-            with_payload=grpc.WithPayloadSelector(enable=False),
-            with_vectors=grpc.WithVectorsSelector(enable=False),
-            # params=grpc.SearchParams(
-            #     hnsw_ef=self._search_params["hnsw_ef"],
-            #     quantization=grpc.QuantizationSearchParams(
-            #         ignore=False,
-            #         rescore=self._search_params["rescore"],
-            #         oversampling=3.0,
-            #     ),
-            # ),
-        )
+        raise NotImplementedError
+        # search_request = grpc.SearchPoints(
+        #     collection_name=self._collection_name,
+        #     vector=q.tolist(),
+        #     limit=n,
+        #     with_payload=grpc.WithPayloadSelector(enable=False),
+        #     with_vectors=grpc.WithVectorsSelector(enable=False),
+        #     # params=grpc.SearchParams(
+        #     #     hnsw_ef=self._search_params["hnsw_ef"],
+        #     #     quantization=grpc.QuantizationSearchParams(
+        #     #         ignore=False,
+        #     #         rescore=self._search_params["rescore"],
+        #     #         oversampling=3.0,
+        #     #     ),
+        #     # ),
+        # )
 
-        search_result = self._client.grpc_points.Search(search_request, timeout=TIMEOUT)
-        result_ids = [point.id.num for point in search_result.result]
-        return result_ids
+        # search_result = self._client.grpc_points.Search(search_request, timeout=TIMEOUT)
+        # result_ids = [point.id.num for point in search_result.result]
+        # return result_ids
 
     def batch_query(self, X, n):
+        threads = min(MAX_BATCH_QUERY_THREADS, X.size)
         quantization_search_params = grpc.QuantizationSearchParams(
             ignore=False,
-            rescore=self._search_params["rescore"],
         )
+
         def iter_queries() -> Iterable:
             for q in X:
                 yield grpc.SearchPoints(
@@ -202,7 +209,6 @@ class Qdrant(BaseANN):
                     with_payload=grpc.WithPayloadSelector(enable=False),
                     with_vectors=grpc.WithVectorsSelector(enable=False),
                     params=grpc.SearchParams(
-                        hnsw_ef=self._search_params["hnsw_ef"],
                         quantization=quantization_search_params,
                     ),
                 )
@@ -215,12 +221,9 @@ class Qdrant(BaseANN):
                     batch = []
             if batch:
                 yield batch
-
-        self.batch_results = []
-
-        for request_batch in iter_batches(iter_queries(), BATCH_SIZE):
+        def query(batch, n):
             start = time()
-            grpc_res: grpc.SearchBatchResponse = self._client.grpc_points.SearchBatch(
+            grpc_res: grpc.SearchBatchResponse = self._async_clients.grpc_points.SearchBatch(
                 grpc.SearchBatchPoints(
                     collection_name=self._collection_name,
                     search_points=request_batch,
@@ -228,10 +231,26 @@ class Qdrant(BaseANN):
                 ),
                 timeout=TIMEOUT,
             )
+            self._cur_async_client = (self._cur_async_client + 1) % MAX_BATCH_QUERY_THREADS
             self.batch_latencies.extend([time() - start] * len(request_batch))
 
-            for r in grpc_res.result:
-                self.batch_results.append([hit.id.num for hit in r.result])
+        self.batch_results = []
+
+        results = numpy.empty((X.shape[0], n), dtype=int)
+        latencies = numpy.empty(X.shape[0], dtype=float)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+            futures = {executor.submit(
+                query, batch, n): batch for batch in iter_batches(iter_queries(), BATCH_SIZE)}
+            for future in concurrent.futures.as_completed(futures):
+                i = futures[future]
+                try:
+                    result, latency = future.result()
+                    results[i] = result
+                    latencies[i] = latency
+                except Exception as x2:
+                    print(f"exception getting batch results: {x2}")
+        self.batch_results = results
+        self.batch_latencies = latencies
 
 #    def batch_query(self, X, n):
 #        def iter_batches(iterable, batch_size) -> Iterable[List[Any]]:
