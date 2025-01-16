@@ -220,7 +220,7 @@ class Qdrant(BaseANN):
                 yield batch
         def query(batch, n):
             start = time()
-            grpc_res: grpc.SearchBatchResponse = self._async_clients.grpc_points.SearchBatch(
+            grpc_res: grpc.SearchBatchResponse = self._async_clients[_cur_async_client].grpc_points.SearchBatch(
                 grpc.SearchBatchPoints(
                     collection_name=self._collection_name,
                     search_points=request_batch,
