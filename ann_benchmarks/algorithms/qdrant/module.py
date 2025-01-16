@@ -41,13 +41,10 @@ class Qdrant(BaseANN):
         self.batch_latencies = []
 
         qdrant_client_params = {
-            "url": "",
-            "api_key": "",
-            #"host": "localhost",
-            #"port": 6333,
-            #"grpc_port": 6334,
+            "host": "localhost",
+            "port": 6333,
+            "grpc_port": 6334,
             "prefer_grpc": self._grpc,
-            "https": False,
         }
         self._client = QdrantClient(**qdrant_client_params)
         self._async_clients = [AsyncQdrantClient(**qdrant_client_params) for _ in range(0, MAX_BATCH_QUERY_THREADS)]
