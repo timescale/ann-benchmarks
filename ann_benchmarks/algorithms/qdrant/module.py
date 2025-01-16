@@ -233,8 +233,8 @@ class Qdrant(BaseANN):
 
         self.batch_results = []
 
-        results = numpy.empty((X.shape[0], n), dtype=int)
-        latencies = numpy.empty(X.shape[0], dtype=float)
+        results = np.empty((X.shape[0], n), dtype=int)
+        latencies = np.empty(X.shape[0], dtype=float)
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             futures = {executor.submit(
                 query, batch, n): batch for batch in iter_batches(iter_queries(), BATCH_SIZE)}
