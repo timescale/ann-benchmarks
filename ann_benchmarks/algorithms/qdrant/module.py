@@ -196,7 +196,11 @@ class Qdrant(BaseANN):
         quantization_search_params = grpc.QuantizationSearchParams(
             ignore=False,
         )
-
+        
+        # Track starting index for each batch
+        batch_start_indices = []
+        current_idx = 0
+        
         def iter_queries() -> Iterable:
             for q in X:
                 yield grpc.SearchPoints(
@@ -209,45 +213,73 @@ class Qdrant(BaseANN):
                         quantization=quantization_search_params,
                     ),
                 )
-        def iter_batches(iterable, batch_size) -> Iterable[List[Any]]:
+
+        def iter_batches(iterable, batch_size) -> Iterable[tuple[List[Any], int]]:
+            nonlocal current_idx
             batch = []
             for item in iterable:
                 batch.append(item)
                 if len(batch) >= batch_size:
-                    yield batch
+                    start_idx = current_idx
+                    current_idx += len(batch)
+                    batch_start_indices.append(start_idx)
+                    yield batch, start_idx
                     batch = []
             if batch:
-                yield batch
-        def query(batch, n):
-            start = time()
-            grpc_res: grpc.SearchBatchResponse = self._async_clients[_cur_async_client].grpc_points.SearchBatch(
-                grpc.SearchBatchPoints(
-                    collection_name=self._collection_name,
-                    search_points=request_batch,
-                    read_consistency=None,
-                ),
-                timeout=TIMEOUT,
-            )
-            self._cur_async_client = (self._cur_async_client + 1) % MAX_BATCH_QUERY_THREADS
-            self.batch_latencies.extend([time() - start] * len(request_batch))
+                start_idx = current_idx
+                current_idx += len(batch)
+                batch_start_indices.append(start_idx)
+                yield batch, start_idx
 
-        self.batch_results = []
+        def query(request_batch, start_idx, thread_idx):
+            start_time = time()
+            try:
+                grpc_res: grpc.SearchBatchResponse = self._async_clients[thread_idx].grpc_points.SearchBatch(
+                    grpc.SearchBatchPoints(
+                        collection_name=self._collection_name,
+                        search_points=request_batch,
+                        read_consistency=None,
+                    ),
+                    timeout=TIMEOUT,
+                )
+                
+                # Extract results from the response
+                batch_results = []
+                for response in grpc_res.responses:
+                    batch_results.append([hit.id for hit in response.result])
+                
+                end_time = time() - start_time
+                return batch_results, [end_time] * len(request_batch), start_idx
+            except Exception as e:
+                print(f"Exception in batch query: {e}")
+                raise
 
         results = np.empty((X.shape[0], n), dtype=int)
         latencies = np.empty(X.shape[0], dtype=float)
+        
+        # Distribute batches across fixed threads
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = {executor.submit(
-                query, batch, n): batch for batch in iter_batches(iter_queries(), BATCH_SIZE)}
+            futures = []
+            for batch_idx, (batch, start_idx) in enumerate(iter_batches(iter_queries(), BATCH_SIZE)):
+                # Assign each batch to a fixed thread using modulo
+                thread_idx = batch_idx % threads
+                futures.append(
+                    executor.submit(query, batch, start_idx, thread_idx)
+                )
+                
             for future in concurrent.futures.as_completed(futures):
-                i = futures[future]
                 try:
-                    result, latency = future.result()
-                    results[i] = result
-                    latencies[i] = latency
-                except Exception as x2:
-                    print(f"exception getting batch results: {x2}")
+                    batch_results, batch_latencies, start_idx = future.result()
+                    for i, (result, latency) in enumerate(zip(batch_results, batch_latencies)):
+                        results[start_idx + i] = result
+                        latencies[start_idx + i] = latency
+                except Exception as e:
+                    print(f"Exception processing batch results: {e}")
+                    raise
+
         self.batch_results = results
         self.batch_latencies = latencies
+        return results, latencies
 
 #    def batch_query(self, X, n):
 #        def iter_batches(iterable, batch_size) -> Iterable[List[Any]]:
