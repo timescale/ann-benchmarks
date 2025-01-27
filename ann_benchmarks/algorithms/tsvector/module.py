@@ -211,7 +211,7 @@ class TSVector(BaseANN):
         id = 0
         with self._pool.connection() as conn:
             id = self.log_start(conn, "loading table")
-        if LOAD_PARALLEL and shutil.which("timescaledb-parallel-copy") is not None:
+        if LOAD_PARALLEL:
             self.load_table_parallel(X)
         else:
             self.load_table_binary(X)
