@@ -1,6 +1,6 @@
 from time import sleep, time
 from typing import Iterable, List, Any
-
+import asyncio
 import numpy as np
 import concurrent.futures
 from qdrant_client import QdrantClient, AsyncQdrantClient
@@ -16,15 +16,14 @@ from qdrant_client.http.models import (
     BinaryQuantizationConfig,
     ScalarType,
     HnswConfigDiff,
-    VectorStruct,
 )
+import threading
+from pprint import pprint
 
 from ..base.module import BaseANN
 
 TIMEOUT = 30
-BATCH_SIZE = 128
-MAX_BATCH_QUERY_THREADS = 16
-
+QDRANT_BATCH_SIZE = 128  # Size of batches for Qdrant requests
 
 class Qdrant(BaseANN):
     _distances_mapping = {"dot": Distance.DOT, "angular": Distance.COSINE, "euclidean": Distance.EUCLID}
@@ -40,18 +39,30 @@ class Qdrant(BaseANN):
         self.batch_results = []
         self.batch_latencies = []
 
-        qdrant_client_params = {
-            "host": "localhost",
+        # Client configuration
+        self._client_config = {
+            "host": "172.31.23.61",
             "port": 6333,
             "grpc_port": 6334,
             "prefer_grpc": self._grpc,
         }
-        self._client = QdrantClient(**qdrant_client_params)
-        self._async_clients = [AsyncQdrantClient(**qdrant_client_params) for _ in range(0, MAX_BATCH_QUERY_THREADS)]
-        self._cur_async_client = 0
+        
+        # Initialize synchronous client for management operations
+        self._client = QdrantClient(**self._client_config)
+        
+        # Initialize single global async client for search operations
+        self._async_client = AsyncQdrantClient(**self._client_config)
+        
+        # Initialize event loop for async operations
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
+
+    def __del__(self):
+        if hasattr(self, '_loop') and self._loop is not None:
+            self._loop.close()
 
     def fit(self, X):
-        return # don't rebuild index now
+        return
         if X.dtype != np.float32:
             X = X.astype(np.float32)
 
@@ -104,7 +115,7 @@ class Qdrant(BaseANN):
                         collection_name=self._collection_name,
                         vectors=vectors,
                         ids=ids,
-                        batch_size=BATCH_SIZE,
+                        batch_size=QDRANT_BATCH_SIZE,
                         parallel=1,
                     )
                     return True
@@ -121,7 +132,7 @@ class Qdrant(BaseANN):
         for i, x in enumerate(X):
             ids.append(i)
             vectors.append([float(f) for f in x])
-            if i > 0 and i % BATCH_SIZE == 0:
+            if i > 0 and i % QDRANT_BATCH_SIZE == 0:
                 print(f"{i} uploading collection of {len(vectors)} vectors")
                 upload_with_retry(ids=ids, vectors=vectors)
                 ids = []
@@ -165,176 +176,73 @@ class Qdrant(BaseANN):
                 print("indexing complete.")
                 break
 
+    async def _process_qdrant_batch(self, vectors: List[np.ndarray], n: int) -> tuple[List[List[int]], List[float]]:
+        """Process a batch of vectors using Qdrant's batch search"""
+        search_points = [
+            grpc.SearchPoints(
+                collection_name=self._collection_name,
+                vector=vector.tolist(),
+                limit=n,
+                with_payload=grpc.WithPayloadSelector(enable=False),
+                with_vectors=grpc.WithVectorsSelector(enable=False),
+                params=grpc.SearchParams(
+                    quantization=grpc.QuantizationSearchParams(ignore=False),
+                ),
+            )
+            for vector in vectors
+        ]
+
+        try:
+            start_time = time()
+            batch_request = grpc.SearchBatchPoints(
+                collection_name=self._collection_name,
+                search_points=search_points
+            )
+            response = await self._async_client.grpc_points.SearchBatch(batch_request, timeout=TIMEOUT)
+            query_time = time() - start_time
+
+            # Extract results
+            batch_results = []
+            for search_response in response.result:
+                batch_results.append([hit.id.num for hit in search_response.result])
+
+            return batch_results, [query_time] * len(vectors)
+        except Exception as e:
+            print(f"Error in batch processing: {e}")
+            raise
+
+    async def _batch_query_async(self, X: np.ndarray, n: int):
+        """Process all queries in batches using async/await"""
+        n_total = len(X)
+        results = np.empty((n_total, n), dtype=int)
+        latencies = np.empty(n_total, dtype=float)
+        
+        # Process batches sequentially but use async/await for each batch
+        for i in range(0, n_total, QDRANT_BATCH_SIZE):
+            batch = X[i:i + QDRANT_BATCH_SIZE]
+            batch_results, batch_latencies = await self._process_qdrant_batch(batch, n)
+            
+            for j, (result, latency) in enumerate(zip(batch_results, batch_latencies)):
+                results[i + j] = result
+                latencies[i + j] = latency
+
+        return results, latencies
+
     def set_query_arguments(self, hnsw_ef, rescore):
         self._search_params["hnsw_ef"] = hnsw_ef
         self._search_params["rescore"] = rescore
 
-    def query(self, q, n):
-        raise NotImplementedError
-        # search_request = grpc.SearchPoints(
-        #     collection_name=self._collection_name,
-        #     vector=q.tolist(),
-        #     limit=n,
-        #     with_payload=grpc.WithPayloadSelector(enable=False),
-        #     with_vectors=grpc.WithVectorsSelector(enable=False),
-        #     # params=grpc.SearchParams(
-        #     #     hnsw_ef=self._search_params["hnsw_ef"],
-        #     #     quantization=grpc.QuantizationSearchParams(
-        #     #         ignore=False,
-        #     #         rescore=self._search_params["rescore"],
-        #     #         oversampling=3.0,
-        #     #     ),
-        #     # ),
-        # )
-
-        # search_result = self._client.grpc_points.Search(search_request, timeout=TIMEOUT)
-        # result_ids = [point.id.num for point in search_result.result]
-        # return result_ids
-
-    def batch_query(self, X, n):
-        threads = min(MAX_BATCH_QUERY_THREADS, X.size)
-        quantization_search_params = grpc.QuantizationSearchParams(
-            ignore=False,
-        )
-        
-        # Track starting index for each batch
-        batch_start_indices = []
-        current_idx = 0
-        
-        def iter_queries() -> Iterable:
-            for q in X:
-                yield grpc.SearchPoints(
-                    collection_name=self._collection_name,
-                    vector=q.tolist(),
-                    limit=n,
-                    with_payload=grpc.WithPayloadSelector(enable=False),
-                    with_vectors=grpc.WithVectorsSelector(enable=False),
-                    params=grpc.SearchParams(
-                        quantization=quantization_search_params,
-                    ),
-                )
-
-        def iter_batches(iterable, batch_size) -> Iterable[tuple[List[Any], int]]:
-            nonlocal current_idx
-            batch = []
-            for item in iterable:
-                batch.append(item)
-                if len(batch) >= batch_size:
-                    start_idx = current_idx
-                    current_idx += len(batch)
-                    batch_start_indices.append(start_idx)
-                    yield batch, start_idx
-                    batch = []
-            if batch:
-                start_idx = current_idx
-                current_idx += len(batch)
-                batch_start_indices.append(start_idx)
-                yield batch, start_idx
-
-        def query(request_batch, start_idx, thread_idx):
-            start_time = time()
-            try:
-                grpc_res: grpc.SearchBatchResponse = self._async_clients[thread_idx].grpc_points.SearchBatch(
-                    grpc.SearchBatchPoints(
-                        collection_name=self._collection_name,
-                        search_points=request_batch,
-                        read_consistency=None,
-                    ),
-                    timeout=TIMEOUT,
-                )
-                
-                # Extract results from the response
-                batch_results = []
-                for response in grpc_res.responses:
-                    batch_results.append([hit.id for hit in response.result])
-                
-                end_time = time() - start_time
-                return batch_results, [end_time] * len(request_batch), start_idx
-            except Exception as e:
-                print(f"Exception in batch query: {e}")
-                raise
-
-        results = np.empty((X.shape[0], n), dtype=int)
-        latencies = np.empty(X.shape[0], dtype=float)
-        
-        # Distribute batches across fixed threads
-        with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-            futures = []
-            for batch_idx, (batch, start_idx) in enumerate(iter_batches(iter_queries(), BATCH_SIZE)):
-                # Assign each batch to a fixed thread using modulo
-                thread_idx = batch_idx % threads
-                futures.append(
-                    executor.submit(query, batch, start_idx, thread_idx)
-                )
-                
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    batch_results, batch_latencies, start_idx = future.result()
-                    for i, (result, latency) in enumerate(zip(batch_results, batch_latencies)):
-                        results[start_idx + i] = result
-                        latencies[start_idx + i] = latency
-                except Exception as e:
-                    print(f"Exception processing batch results: {e}")
-                    raise
-
+    def batch_query(self, X: np.ndarray, n: int):
+        """Entry point for batch querying"""
+        results, latencies = self._loop.run_until_complete(self._batch_query_async(X, n))
         self.batch_results = results
         self.batch_latencies = latencies
-        return results, latencies
-
-#    def batch_query(self, X, n):
-#        def iter_batches(iterable, batch_size) -> Iterable[List[Any]]:
-#            """Iterate over `iterable` in batches of size `batch_size`."""
-#            batch = []
-#            for item in iterable:
-#                batch.append(item)
-#                if len(batch) >= batch_size:
-#                    yield batch
-#                    batch = []
-#            if batch:
-#                yield batch
-#
-#        quantization_search_params = grpc.QuantizationSearchParams(
-#            ignore=False,
-#            rescore=self._search_params["rescore"],
-#        )
-#
-#        search_queries = [
-#            grpc.SearchPoints(
-#                collection_name=self._collection_name,
-#                vector=q.tolist(),
-#                limit=n,
-#                with_payload=grpc.WithPayloadSelector(enable=False),
-#                with_vectors=grpc.WithVectorsSelector(enable=False),
-#                params=grpc.SearchParams(
-#                    hnsw_ef=self._search_params["hnsw_ef"],
-#                    quantization=quantization_search_params,
-#                ),
-#            )
-#            for q in X
-#        ]
-#
-#        self.batch_results = []
-#
-#        for request_batch in iter_batches(search_queries, BATCH_SIZE):
-#            start = time()
-#            grpc_res: grpc.SearchBatchResponse = self._client.grpc_points.SearchBatch(
-#                grpc.SearchBatchPoints(
-#                    collection_name=self._collection_name,
-#                    search_points=request_batch,
-#                    read_consistency=None,
-#                ),
-#                timeout=TIMEOUT,
-#            )
-#            self.batch_latencies.extend([time() - start] * len(request_batch))
-#
-#            for r in grpc_res.result:
-#                self.batch_results.append([hit.id.num for hit in r.result])
 
     def get_batch_results(self):
         return self.batch_results
 
-#    def get_batch_latencies(self):
-#        return self.batch_latencies
+    def get_batch_latencies(self):
+        return self.batch_latencies
 
     def __str__(self):
         ef_construct = self._ef_construct
