@@ -81,14 +81,14 @@ class TSVector(BaseANN):
         def configure(conn):
             register_vector(conn)
             if self._query_search_list_size is not None:
-               conn.execute("set tsv.query_search_list_size = %d" %
+               conn.execute("set diskann.query_search_list_size = %d" %
                             self._query_search_list_size)
-               print("set tsv.query_search_list_size = %d" %
+               print("set diskann.query_search_list_size = %d" %
                      self._query_search_list_size)
             if self._query_rescore is not None:
-               conn.execute("set tsv.query_rescore = %d" %
+               conn.execute("set diskann.query_rescore = %d" %
                             self._query_rescore)
-               print("set tsv.query_rescore = %d" % self._query_rescore)
+               print("set diskann.query_rescore = %d" % self._query_rescore)
             for setting in CONNECTION_SETTINGS:
                 conn.execute(setting)
             conn.commit()
