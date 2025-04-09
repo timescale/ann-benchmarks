@@ -9,13 +9,13 @@ float:
     run_groups:
       default:
         args: [
-          ['binary'], #quantization
-          [ 36 ], #m
+          ['none', 'scalar', 'binary'], #quantization
+          [ 32 ], #m
           [ 64 ], #ef_construct
         ]
         query_args: [
-          [ 32 ], #hnsw_ef
-          [True], # re-score
+          [ 8,16,24,32,64, 128, 256, 512, 768 ], #hnsw_ef
+          [True,False], # re-score
         ]
         #args: [
         #  ['none', 'scalar', 'binary'], #quantization
