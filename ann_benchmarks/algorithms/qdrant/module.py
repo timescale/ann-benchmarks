@@ -19,7 +19,7 @@ from qdrant_client.http.models import (
 
 from ..base.module import BaseANN
 
-TIMEOUT = 30
+TIMEOUT = 30000
 BATCH_SIZE = 128
 
 
@@ -44,7 +44,7 @@ class Qdrant(BaseANN):
             "prefer_grpc": self._grpc,
             "https": False,
         }
-        self._client = QdrantClient(**qdrant_client_params)
+        self._client = QdrantClient(timeout=9999, **qdrant_client_params)
 
     def fit(self, X):
         return
