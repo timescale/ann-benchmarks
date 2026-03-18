@@ -7,12 +7,20 @@ from multiprocessing import Pool
 from ann_benchmarks.main import positive_int
 
 
+BUILD_CONTEXTS = {
+    "meerkat": {"meerkat-src": os.environ.get("MEERKAT_SRC", "../meerkat")},
+}
+
+
 def build(library, args):
     print("Building %s..." % library)
     if args is not None and len(args) != 0:
         q = " ".join(["--build-arg " + x.replace(" ", "\\ ") for x in args])
     else:
         q = ""
+
+    for name, path in BUILD_CONTEXTS.get(library, {}).items():
+        q += " --build-context %s=%s" % (name, path)
 
     try:
         subprocess.check_call(
