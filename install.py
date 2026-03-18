@@ -16,7 +16,8 @@ def build(library, args):
 
     try:
         subprocess.check_call(
-            "docker build %s --rm -t ann-benchmarks-%s -f" " ann_benchmarks/algorithms/%s/Dockerfile  ." % (q, library, library),
+            "docker build %s --network=host --rm -t ann-benchmarks-%s -f"
+            " ann_benchmarks/algorithms/%s/Dockerfile  ." % (q, library, library),
             shell=True,
         )
         return {library: "success"}
@@ -37,11 +38,11 @@ if __name__ == "__main__":
 
     print("Building base image...")
     subprocess.check_call(
-         "docker build \
+        "docker build --network=host \
          --rm -t ann-benchmarks -f ann_benchmarks/algorithms/base/Dockerfile .",
-         shell=True,
-     )
-    
+        shell=True,
+    )
+
     if args.algorithm:
         tags = [args.algorithm]
     elif os.getenv("LIBRARY"):
@@ -63,6 +64,6 @@ if __name__ == "__main__":
 
     # Exit 1 if any of the installations fail.
     for x in install_status:
-        for (k, v) in x.items():
+        for k, v in x.items():
             if v == "fail":
                 sys.exit(1)
