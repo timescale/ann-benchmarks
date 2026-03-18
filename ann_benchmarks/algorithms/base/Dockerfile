@@ -9,6 +9,6 @@ RUN python3 -m venv /home/app/venv
 ENV PATH="/home/app/venv/bin:$PATH"
 
 COPY requirements.txt run_algorithm.py ./
-RUN pip3 install -r requirements.txt
+RUN pip install -r requirements.txt
 
-ENTRYPOINT ["python3", "-u", "run_algorithm.py"]
+ENTRYPOINT ["python", "-u", "run_algorithm.py"]

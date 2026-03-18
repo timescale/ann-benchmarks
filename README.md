@@ -34,6 +34,7 @@ Evaluated
 * [Vearch](https://github.com/vearch/vearch) ![https://img.shields.io/github/stars/vearch/vearch?style=social](https://img.shields.io/github/stars/vearch/vearch?style=social)
 * [Elasticsearch](https://github.com/elastic/elasticsearch) ![https://img.shields.io/github/stars/elastic/elasticsearch?style=social](https://img.shields.io/github/stars/elastic/elasticsearch?style=social): HNSW
 * [Elastiknn](https://github.com/alexklibisz/elastiknn) ![https://img.shields.io/github/stars/alexklibisz/elastiknn?style=social](https://img.shields.io/github/stars/alexklibisz/elastiknn?style=social)
+* [ExpANN](https://github.com/jacketsj/expANN) ![https://img.shields.io/github/stars/jacketsj/expANN?style=social](https://img.shields.io/github/stars/jacketsj/expANN?style=social)
 * [OpenSearch KNN](https://github.com/opensearch-project/k-NN) ![https://img.shields.io/github/stars/opensearch-project/k-NN?style=social](https://img.shields.io/github/stars/opensearch-project/k-NN?style=social)
 * [DiskANN](https://github.com/microsoft/diskann) ![https://img.shields.io/github/stars/microsoft/diskann?style=social](https://img.shields.io/github/stars/microsoft/diskann?style=social): Vamana, Vamana-PQ
 * [Vespa](https://github.com/vespa-engine/vespa) ![https://img.shields.io/github/stars/vespa-engine/vespa?style=social](https://img.shields.io/github/stars/vespa-engine/vespa?style=social)
@@ -44,8 +45,13 @@ Evaluated
 * [Milvus](https://github.com/milvus-io/milvus) ![https://img.shields.io/github/stars/milvus-io/milvus?style=social](https://img.shields.io/github/stars/milvus-io/milvus?style=social): [Knowhere](https://github.com/milvus-io/knowhere)
 * [Zilliz(Glass)](https://github.com/hhy3/pyglass)
 * [pgvector](https://github.com/pgvector/pgvector) ![https://img.shields.io/github/stars/pgvector/pgvector?style=social](https://img.shields.io/github/stars/pgvector/pgvector?style=social)
+* [pgvecto.rs](https://github.com/tensorchord/pgvecto.rs) ![https://img.shields.io/github/stars/tensorchord/pgvecto.rs?style=social](https://img.shields.io/github/stars/tensorchord/pgvecto.rs?style=social)
 * [RediSearch](https://github.com/redisearch/redisearch) ![https://img.shields.io/github/stars/redisearch/redisearch?style=social](https://img.shields.io/github/stars/redisearch/redisearch?style=social)
   * [pg_embedding](https://github.com/neondatabase/pg_embedding) ![https://img.shields.io/github/stars/pg_embedding/pg_embedding?style=social](https://img.shields.io/github/stars/neondatabase/pg_embedding?style=social)
+* [Descartes(01AI)](https://github.com/xiaoming-01ai/descartes)
+* [kgn](https://github.com/Henry-yan/kgn)
+* [vsag](https://github.com/antgroup/vsag)
+* [PGVectorScale](https://github.com/timescale/pgvectorscale/tree/main)
 
 
 Data sets
@@ -68,11 +74,13 @@ We have a number of precomputed data sets in HDF5 format. All data sets have bee
 | [NYTimes](https://archive.ics.uci.edu/ml/datasets/bag+of+words)   |        256 |    290,000 |    10,000 |       100 | Angular   | [HDF5](http://ann-benchmarks.com/nytimes-256-angular.hdf5) (301MB)         |
 | [SIFT](http://corpus-texmex.irisa.fr/)                           |        128 |  1,000,000 |    10,000 |       100 | Euclidean | [HDF5](http://ann-benchmarks.com/sift-128-euclidean.hdf5) (501MB)          |
 | [Last.fm](https://github.com/erikbern/ann-benchmarks/pull/91)     |         65 |    292,385 |    50,000 |       100 | Angular   | [HDF5](http://ann-benchmarks.com/lastfm-64-dot.hdf5) (135MB)               |
+| [COCO-I2I](https://cocodataset.org/)                              |        512 |    113,287 |    10,000 |       100 | Angular   | [HDF5](https://github.com/fabiocarrara/str-encoders/releases/download/v0.1.3/coco-i2i-512-angular.hdf5) (136MB) |
+| [COCO-T2I](https://cocodataset.org/)                              |        512 |    113,287 |    10,000 |       100 | Angular   | [HDF5](https://github.com/fabiocarrara/str-encoders/releases/download/v0.1.3/coco-t2i-512-angular.hdf5) (136MB) |
 
 Results
 =======
 
-These are all as of April 2023, running all benchmarks on a r6i.16xlarge machine on AWS with `--parallelism 31` and hyperthreading disabled. All benchmarks are single-CPU.
+These are all as of April 2025, running all benchmarks on a r6i.16xlarge machine on AWS with `--parallelism 31` and hyperthreading disabled. All benchmarks are single-CPU.
 
 glove-100-angular
 -----------------
@@ -118,9 +126,9 @@ The only prerequisite is Python (tested with 3.10.6) and Docker.
 Running
 =======
 
-1. Run `python run.py` (this can take an extremely long time, potentially days)
-2. Run `python plot.py` or `python create_website.py` to plot results.
-3. Run `python data_export.py --out res.csv` to export all results into a csv file for additional post-processing.
+1. Run `python run.py` (this can take an extremely long time, potentially days).
+2. Run `python plot.py --x-scale logit --y-scale log` to plot results.
+3. Run `python create_website.py` to create a website with lots of plots.
 
 You can customize the algorithms and datasets as follows:
 
