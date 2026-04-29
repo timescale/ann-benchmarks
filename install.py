@@ -7,8 +7,11 @@ from multiprocessing import Pool
 from ann_benchmarks.main import positive_int
 
 
-BUILD_CONTEXTS = {
-    "meerkat": {"meerkat-src": os.environ.get("MEERKAT_SRC", "../meerkat")},
+# Algorithms that need external source repos.
+# Value is the default path to the repo (overridable via env var).
+EXTERNAL_SOURCES = {
+    "meerkat": os.environ.get("MEERKAT_SRC", "../meerkat"),
+    "meerkat_standalone": os.environ.get("MEERKAT_SRC", "../meerkat"),
 }
 
 
@@ -19,8 +22,16 @@ def build(library, args):
     else:
         q = ""
 
-    for name, path in BUILD_CONTEXTS.get(library, {}).items():
-        q += " --build-context %s=%s" % (name, path)
+    src_repo = EXTERNAL_SOURCES.get(library)
+    tarball = None
+    if src_repo:
+        tarball = os.path.join("ann_benchmarks", "algorithms", library, "src.tar.gz")
+        print("  Creating source archive from %s..." % src_repo)
+        subprocess.check_call(
+            "git -C %s archive --format=tar.gz -o %s HEAD"
+            % (src_repo, os.path.abspath(tarball)),
+            shell=True,
+        )
 
     try:
         subprocess.check_call(
@@ -31,6 +42,9 @@ def build(library, args):
         return {library: "success"}
     except subprocess.CalledProcessError:
         return {library: "fail"}
+    finally:
+        if tarball and os.path.exists(tarball):
+            os.remove(tarball)
 
 
 def build_multiprocess(args):
