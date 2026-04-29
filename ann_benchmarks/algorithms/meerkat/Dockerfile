@@ -25,12 +25,12 @@ RUN ARCH=$(uname -m) && \
 # Install meson for meerkat build
 RUN pip install meson ninja
 
-# Build meerkat from local source (passed as additional build context)
-RUN --mount=type=bind,from=meerkat-src,target=/mnt/meerkat \
-    meson setup /tmp/meerkat-build /mnt/meerkat \
+# Build meerkat from local source (tarball created by install.py via git archive)
+ADD ann_benchmarks/algorithms/meerkat/src.tar.gz /tmp/meerkat
+RUN meson setup /tmp/meerkat/builddir /tmp/meerkat \
         --buildtype=release -Dnative=true && \
-    meson compile -C /tmp/meerkat-build && \
-    meson install -C /tmp/meerkat-build
+    meson compile -C /tmp/meerkat/builddir && \
+    meson install -C /tmp/meerkat/builddir
 
 # Initialize database with pgvector + meerkat extensions
 USER postgres
