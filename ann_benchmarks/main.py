@@ -122,6 +122,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--run-disabled", help="run algorithms that are disabled in algos.yml", action="store_true")
     parser.add_argument("--parallelism", type=positive_int, help="Number of Docker containers in parallel", default=1)
+    parser.add_argument("--memory", type=str, help="Docker memory limit (e.g., '8g', '16g')", default=None)
 
     args = parser.parse_args()
     if args.timeout == -1:
@@ -251,8 +252,11 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
     for definition in definitions:
         task_queue.put(definition)
 
-    memory_margin = 500e6  # reserve some extra memory for misc stuff
-    mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
+    if args.memory is not None:
+        mem_limit = args.memory  # Docker accepts strings like '8g'
+    else:
+        memory_margin = 500e6  # reserve some extra memory for misc stuff
+        mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
 
     try:
         workers = [multiprocessing.Process(target=run_worker, args=(i + 1, mem_limit, args, task_queue)) for i in range(args.parallelism)]
