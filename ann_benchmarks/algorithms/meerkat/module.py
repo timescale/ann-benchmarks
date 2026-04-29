@@ -11,7 +11,12 @@ class Meerkat(BaseANN):
     def __init__(self, metric, method_param):
         self._metric = metric
         self._nlist = method_param["nlist"]
+        self._fan_out = method_param.get("fan_out")
+        self._centroid_compression = method_param.get("centroid_compression", False)
         self._boundary_epsilon = method_param.get("boundary_epsilon", 0)
+        self._page_cache = method_param.get("page_cache", False)
+        self._rerank_cache = method_param.get("rerank_cache", False)
+        self._mmap = method_param.get("mmap", True)
         self._cur = None
 
         if metric == "angular":
@@ -24,12 +29,14 @@ class Meerkat(BaseANN):
             raise RuntimeError(f"unknown metric {metric}")
 
     def fit(self, X):
-        subprocess.run(
-            "service postgresql start",
-            shell=True, check=True,
-            stdout=sys.stdout, stderr=sys.stderr)
-        conn = psycopg.connect(
-            user="ann", password="ann", dbname="ann", autocommit=True)
+        import os
+        dsn = os.environ.get("MEERKAT_DSN", "user=ann password=ann dbname=ann")
+        if "MEERKAT_DSN" not in os.environ:
+            subprocess.run(
+                "service postgresql start",
+                shell=True, check=True,
+                stdout=sys.stdout, stderr=sys.stderr)
+        conn = psycopg.connect(dsn, autocommit=True)
         pgvector.psycopg.register_vector(conn)
         cur = conn.cursor()
 
@@ -51,12 +58,22 @@ class Meerkat(BaseANN):
         print("creating index...")
         sys.stdout.flush()
         with_opts = "nlist = %d" % self._nlist
+        if self._fan_out is not None:
+            with_opts += ", fan_out = %d" % self._fan_out
+        if self._centroid_compression:
+            with_opts += ", centroid_compression = true"
         if self._boundary_epsilon > 0:
             with_opts += ", boundary_epsilon = %g" % self._boundary_epsilon
         cur.execute(
             "CREATE INDEX ON items USING mktann (embedding %s)"
             " WITH (%s)" % (self._ops, with_opts))
         print("done!")
+        if self._mmap:
+            cur.execute("SET mkt.mmap = on")
+        if self._page_cache:
+            cur.execute("SET mkt.page_cache = on")
+        if self._rerank_cache:
+            cur.execute("SET mkt.rerank_cache = on")
         self._cur = cur
 
     def set_query_arguments(self, nprobe_topk):
@@ -75,7 +92,17 @@ class Meerkat(BaseANN):
         return self._cur.fetchone()[0] / 1024
 
     def __str__(self):
-        eps = (f", boundary_epsilon={self._boundary_epsilon}"
-               if self._boundary_epsilon > 0 else "")
-        return (f"Meerkat(metric={self._metric}, nlist={self._nlist},"
-                f" nprobe={self._nprobe}, topk={self._topk}{eps})")
+        parts = [f"metric={self._metric}", f"nlist={self._nlist}"]
+        if self._fan_out is not None:
+            parts.append(f"fan_out={self._fan_out}")
+        if self._centroid_compression:
+            parts.append("compress=true")
+        parts.append(f"nprobe={self._nprobe}")
+        parts.append(f"topk={self._topk}")
+        if self._boundary_epsilon > 0:
+            parts.append(f"boundary_epsilon={self._boundary_epsilon}")
+        if self._page_cache:
+            parts.append("page_cache=on")
+        if self._rerank_cache:
+            parts.append("rerank_cache=on")
+        return f"Meerkat({', '.join(parts)})"

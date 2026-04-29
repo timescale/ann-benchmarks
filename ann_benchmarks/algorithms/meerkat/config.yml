@@ -7,22 +7,11 @@ float:
     module: ann_benchmarks.algorithms.meerkat
     name: meerkat
     run_groups:
-      nlist-10000:
-        arg_groups: [{nlist: 10000}]
-        query_args: [[[10, 10], [20, 10], [40, 10],
-              [60, 10], [80, 10], [120, 10],
-              [200, 10], [350, 10]]]
-  - base_args: ['@metric']
-    constructor: Meerkat
-    disabled: false
-    docker_tag: ann-benchmarks-meerkat
-    module: ann_benchmarks.algorithms.meerkat
-    name: meerkat-boundary
-    run_groups:
-      nlist-10000-boundary:
-        arg_groups: [{nlist: 10000, boundary_epsilon: 0.01}]
-        query_args: [[[5, 10], [10, 10], [20, 10], [40, 10],
-              [80, 10], [120, 10], [200, 10]]]
+      nlist-1000:
+        arg_groups: [{nlist: 1000, mmap: false, page_cache: true, rerank_cache: true}]
+        query_args: [[[5, 10], [10, 10], [20, 10],
+              [40, 10], [60, 10], [80, 10],
+              [120, 10], [200, 10]]]
   euclidean:
   - base_args: ['@metric']
     constructor: Meerkat
@@ -31,18 +20,8 @@ float:
     module: ann_benchmarks.algorithms.meerkat
     name: meerkat
     run_groups:
-      nlist-10000:
-        arg_groups: [{nlist: 10000}]
-        query_args: [[[20, 100], [50, 200], [100, 400],
-              [200, 800], [400, 1500]]]
-  - base_args: ['@metric']
-    constructor: Meerkat
-    disabled: false
-    docker_tag: ann-benchmarks-meerkat
-    module: ann_benchmarks.algorithms.meerkat
-    name: meerkat-boundary
-    run_groups:
-      nlist-10000-boundary:
-        arg_groups: [{nlist: 10000, boundary_epsilon: 0.01}]
-        query_args: [[[10, 50], [20, 100], [50, 200],
-              [100, 400], [200, 800]]]
+      nlist-1000:
+        arg_groups: [{nlist: 1000, mmap: false, page_cache: true, rerank_cache: true}]
+        query_args: [[[5, 10], [10, 10], [20, 10],
+              [40, 10], [60, 10], [80, 10],
+              [120, 10], [200, 10]]]
