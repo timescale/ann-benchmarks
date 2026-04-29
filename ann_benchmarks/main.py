@@ -69,10 +69,13 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
         if args.local:
             run(definition, args.dataset, args.count, args.runs, args.batch)
         else:
-            memory_margin = 500e6  # reserve some extra memory for misc stuff
-            mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
+            if args.memory is not None:
+                mem_limit = args.memory  # Docker accepts strings like '8g'
+            else:
+                memory_margin = 500e6  # reserve some extra memory for misc stuff
+                mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
             cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
-            
+
             run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit)
 
 
@@ -123,6 +126,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--run-disabled", help="run algorithms that are disabled in algos.yml", action="store_true")
     parser.add_argument("--parallelism", type=positive_int, help="Number of Docker containers in parallel", default=1)
+    parser.add_argument("--memory", type=str, help="Docker memory limit (e.g., '8g', '16g')", default=None)
 
     args = parser.parse_args()
     if args.timeout == -1:

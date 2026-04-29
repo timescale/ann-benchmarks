@@ -15,6 +15,7 @@ class Scann(BaseANN):
         self.dist = dist
 
     def fit(self, X):
+        X = np.array(X, dtype=np.float32)
         if self.dist == "dot_product":
             spherical = True
             X[np.linalg.norm(X, axis=1) == 0] = 1.0 / np.sqrt(X.shape[1])
