@@ -1,0 +1,83 @@
+float:
+  angular:
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-rabitq-asym
+    run_groups:
+      rabitq-asym:
+        arg_groups: [{nlist: 1000, centroid_fmt: rabitq, distance_mode: asymmetric}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-rabitq-sym
+    run_groups:
+      rabitq-sym:
+        arg_groups: [{nlist: 1000, centroid_fmt: rabitq, distance_mode: symmetric}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-float32
+    run_groups:
+      float32:
+        arg_groups: [{nlist: 1000, centroid_fmt: float32}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-float16
+    run_groups:
+      float16:
+        arg_groups: [{nlist: 1000, centroid_fmt: float16}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-float16-fastscan
+    run_groups:
+      float16-fastscan:
+        arg_groups: [{nlist: 1000, centroid_fmt: float16, encode_rabitq: 1, scan_mode: fastscan}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-float16-1bit
+    run_groups:
+      float16-1bit:
+        arg_groups: [{nlist: 1000, centroid_fmt: float16, encode_rabitq: 1, scan_mode: 1bit}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  euclidean:
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-rabitq-asym
+    run_groups:
+      rabitq-asym:
+        arg_groups: [{nlist: 1000, centroid_fmt: rabitq, distance_mode: asymmetric}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
+  - base_args: ['@metric']
+    constructor: MeerkatStandalone
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat_standalone
+    module: ann_benchmarks.algorithms.meerkat_standalone
+    name: meerkat-float32
+    run_groups:
+      float32:
+        arg_groups: [{nlist: 1000, centroid_fmt: float32}]
+        query_args: [[5, 10, 20, 40, 80, 120, 200, 400]]
