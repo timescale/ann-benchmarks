@@ -12,6 +12,18 @@ float:
         query_args: [[[5, 10], [10, 10], [20, 10],
               [40, 10], [60, 10], [80, 10],
               [120, 10], [200, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-soar
+    run_groups:
+      nlist-1000-soar:
+        arg_groups: [{nlist: 1000, soar_lambda: 1.5, mmap: false, page_cache: true, rerank_cache: true}]
+        query_args: [[[5, 10], [10, 10], [20, 10],
+              [40, 10], [60, 10], [80, 10],
+              [120, 10], [200, 10]]]
   euclidean:
   - base_args: ['@metric']
     constructor: Meerkat
@@ -22,6 +34,18 @@ float:
     run_groups:
       nlist-1000:
         arg_groups: [{nlist: 1000, mmap: false, page_cache: true, rerank_cache: true}]
+        query_args: [[[5, 10], [10, 10], [20, 10],
+              [40, 10], [60, 10], [80, 10],
+              [120, 10], [200, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-soar
+    run_groups:
+      nlist-1000-soar:
+        arg_groups: [{nlist: 1000, soar_lambda: 1.5, mmap: false, page_cache: true, rerank_cache: true}]
         query_args: [[[5, 10], [10, 10], [20, 10],
               [40, 10], [60, 10], [80, 10],
               [120, 10], [200, 10]]]
