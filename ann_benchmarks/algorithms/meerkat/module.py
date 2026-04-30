@@ -14,6 +14,7 @@ class Meerkat(BaseANN):
         self._fan_out = method_param.get("fan_out")
         self._centroid_compression = method_param.get("centroid_compression", False)
         self._boundary_epsilon = method_param.get("boundary_epsilon", 0)
+        self._soar_lambda = method_param.get("soar_lambda", 0)
         self._page_cache = method_param.get("page_cache", False)
         self._rerank_cache = method_param.get("rerank_cache", False)
         self._mmap = method_param.get("mmap", True)
@@ -64,6 +65,8 @@ class Meerkat(BaseANN):
             with_opts += ", centroid_compression = true"
         if self._boundary_epsilon > 0:
             with_opts += ", boundary_epsilon = %g" % self._boundary_epsilon
+        if self._soar_lambda > 0:
+            with_opts += ", soar_lambda = %g" % self._soar_lambda
         cur.execute(
             "CREATE INDEX ON items USING mktann (embedding %s)"
             " WITH (%s)" % (self._ops, with_opts))
@@ -101,6 +104,8 @@ class Meerkat(BaseANN):
         parts.append(f"topk={self._topk}")
         if self._boundary_epsilon > 0:
             parts.append(f"boundary_epsilon={self._boundary_epsilon}")
+        if self._soar_lambda > 0:
+            parts.append(f"soar_lambda={self._soar_lambda}")
         if self._page_cache:
             parts.append("page_cache=on")
         if self._rerank_cache:

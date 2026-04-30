@@ -39,6 +39,8 @@ class MeerkatStandalone(BaseANN):
         self._encode_rabitq = method_param.get("encode_rabitq", 1)
         self._distance_mode = method_param.get("distance_mode", "asymmetric")
         self._scan_mode = method_param.get("scan_mode", "fastscan")
+        self._soar_lambda = method_param.get("soar_lambda", 0.0)
+        self._boundary_epsilon = method_param.get("boundary_epsilon", 0.0)
         self._nprobe = 10
         self._handle = None
 
@@ -56,6 +58,8 @@ class MeerkatStandalone(BaseANN):
             ctypes.c_char_p,   # posting_fmt
             ctypes.c_uint32,   # km_nredo
             ctypes.c_uint32,   # km_max_iter
+            ctypes.c_double,   # soar_lambda
+            ctypes.c_double,   # boundary_epsilon
             ctypes.c_void_p,   # info (nullable)
         ]
 
@@ -100,6 +104,8 @@ class MeerkatStandalone(BaseANN):
             posting_fmt_str,
             0,
             0,
+            ctypes.c_double(self._soar_lambda),
+            ctypes.c_double(self._boundary_epsilon),
             None,
         )
 
@@ -140,8 +146,15 @@ class MeerkatStandalone(BaseANN):
             self._handle = None
 
     def __str__(self):
-        return (
-            f"MeerkatStandalone(metric={self._metric}, "
-            f"nlist={self._nlist}, fmt={self._centroid_fmt}, "
-            f"mode={self._distance_mode}, nprobe={self._nprobe})"
-        )
+        parts = [
+            f"metric={self._metric}",
+            f"nlist={self._nlist}",
+            f"fmt={self._centroid_fmt}",
+            f"mode={self._distance_mode}",
+            f"nprobe={self._nprobe}",
+        ]
+        if self._soar_lambda > 0:
+            parts.append(f"soar={self._soar_lambda}")
+        if self._boundary_epsilon > 0:
+            parts.append(f"boundary={self._boundary_epsilon}")
+        return f"MeerkatStandalone({', '.join(parts)})"
