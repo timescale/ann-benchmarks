@@ -15,9 +15,6 @@ class Meerkat(BaseANN):
         self._centroid_compression = method_param.get("centroid_compression", False)
         self._boundary_epsilon = method_param.get("boundary_epsilon", 0)
         self._soar_lambda = method_param.get("soar_lambda", 0)
-        self._page_cache = method_param.get("page_cache", False)
-        self._rerank_cache = method_param.get("rerank_cache", False)
-        self._mmap = method_param.get("mmap", True)
         self._cur = None
 
         if metric == "angular":
@@ -71,12 +68,6 @@ class Meerkat(BaseANN):
             "CREATE INDEX ON items USING mktann (embedding %s)"
             " WITH (%s)" % (self._ops, with_opts))
         print("done!")
-        if self._mmap:
-            cur.execute("SET mkt.mmap = on")
-        if self._page_cache:
-            cur.execute("SET mkt.page_cache = on")
-        if self._rerank_cache:
-            cur.execute("SET mkt.rerank_cache = on")
         self._cur = cur
 
     def set_query_arguments(self, nprobe_topk):
@@ -106,8 +97,4 @@ class Meerkat(BaseANN):
             parts.append(f"boundary_epsilon={self._boundary_epsilon}")
         if self._soar_lambda > 0:
             parts.append(f"soar_lambda={self._soar_lambda}")
-        if self._page_cache:
-            parts.append("page_cache=on")
-        if self._rerank_cache:
-            parts.append("rerank_cache=on")
         return f"Meerkat({', '.join(parts)})"
