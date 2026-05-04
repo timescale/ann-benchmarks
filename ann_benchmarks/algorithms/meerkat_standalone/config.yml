@@ -18,7 +18,7 @@ float:
     name: meerkat-rabitq-asym-soar
     run_groups:
       rabitq-asym-soar:
-        arg_groups: [{nlist: 1000, centroid_fmt: rabitq, distance_mode: asymmetric, soar_lambda: 1.5}]
+        arg_groups: [{nlist: 3000, centroid_fmt: rabitq, distance_mode: asymmetric, soar_lambda: 1.5}]
         query_args: [[5, 10, 20, 40, 80, 120, 200]]
   - base_args: ['@metric']
     constructor: MeerkatStandalone
