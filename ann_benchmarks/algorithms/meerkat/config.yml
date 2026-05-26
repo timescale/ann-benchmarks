@@ -24,6 +24,48 @@ float:
         query_args: [[[5, 10], [10, 10], [20, 10],
               [40, 10], [60, 10], [80, 10],
               [120, 10], [200, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n2000-cc-fs16-soar
+    run_groups:
+      nlist-2000-cc-soar:
+        arg_groups:
+          [{nlist: 2000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[3, 10], [5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n4000-cc-fs16-soar
+    run_groups:
+      nlist-4000-cc-soar:
+        arg_groups:
+          [{nlist: 4000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10], [1000, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n8000-cc-fs16-soar
+    run_groups:
+      nlist-8000-cc-soar:
+        arg_groups:
+          [{nlist: 8000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10], [1000, 10]]]
   euclidean:
   - base_args: ['@metric']
     constructor: Meerkat
@@ -49,3 +91,45 @@ float:
         query_args: [[[5, 10], [10, 10], [20, 10],
               [40, 10], [60, 10], [80, 10],
               [120, 10], [200, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n2000-cc-fs16-soar
+    run_groups:
+      nlist-2000-cc-soar:
+        arg_groups:
+          [{nlist: 2000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[3, 10], [5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n4000-cc-fs16-soar
+    run_groups:
+      nlist-4000-cc-soar:
+        arg_groups:
+          [{nlist: 4000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10], [1000, 10]]]
+  - base_args: ['@metric']
+    constructor: Meerkat
+    disabled: false
+    docker_tag: ann-benchmarks-meerkat
+    module: ann_benchmarks.algorithms.meerkat
+    name: meerkat-n8000-cc-fs16-soar
+    run_groups:
+      nlist-8000-cc-soar:
+        arg_groups:
+          [{nlist: 8000, centroid_compression: true, fastscan: true,
+            fastscan_bits: 16, soar_lambda: 1.0, boundary_epsilon: 0.05}]
+        query_args:
+          [[[5, 10], [10, 10], [20, 10], [40, 10], [80, 10],
+            [120, 10], [200, 10], [400, 10], [600, 10], [1000, 10]]]
