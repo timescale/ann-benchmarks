@@ -74,7 +74,15 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
             else:
                 memory_margin = 500e6  # reserve some extra memory for misc stuff
                 mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
-            cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
+            if args.cpuset is not None:
+                # Give the container more cores than the default single
+                # pin -- needed for parallel index BUILDS at large scale.
+                # Queries stay effectively single-core (one sequential
+                # client connection); the algorithm images should also
+                # disable server-side query parallelism.
+                cpu_limit = args.cpuset
+            else:
+                cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
 
             run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit)
 
@@ -127,6 +135,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--run-disabled", help="run algorithms that are disabled in algos.yml", action="store_true")
     parser.add_argument("--parallelism", type=positive_int, help="Number of Docker containers in parallel", default=1)
     parser.add_argument("--memory", type=str, help="Docker memory limit (e.g., '8g', '16g')", default=None)
+    parser.add_argument(
+        "--cpuset",
+        type=str,
+        help="Docker cpuset-cpus for the algorithm container (e.g. '0-31'); "
+        "default pins one core per worker",
+        default=None,
+    )
 
     args = parser.parse_args()
     if args.timeout == -1:

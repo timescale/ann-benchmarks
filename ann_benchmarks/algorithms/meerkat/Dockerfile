@@ -48,7 +48,8 @@ RUN service postgresql start && \
     psql -c "ALTER SYSTEM SET max_parallel_workers = 32" && \
     psql -c "ALTER SYSTEM SET shared_buffers = '64GB'" && \
     psql -c "ALTER SYSTEM SET effective_cache_size = '400GB'" && \
-    psql -c "ALTER SYSTEM SET random_page_cost = 1.1"
+    psql -c "ALTER SYSTEM SET random_page_cost = 1.1" && \
+    psql -c "ALTER SYSTEM SET max_parallel_workers_per_gather = 0"
 USER root
 
 RUN pip install psycopg[binary] pgvector
