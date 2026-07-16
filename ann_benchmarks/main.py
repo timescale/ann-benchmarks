@@ -84,7 +84,7 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
             else:
                 cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
 
-            run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit)
+            run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit, args.shm_size)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -135,6 +135,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--run-disabled", help="run algorithms that are disabled in algos.yml", action="store_true")
     parser.add_argument("--parallelism", type=positive_int, help="Number of Docker containers in parallel", default=1)
     parser.add_argument("--memory", type=str, help="Docker memory limit (e.g., '8g', '16g')", default=None)
+    parser.add_argument(
+        "--shm-size",
+        type=str,
+        help="Docker /dev/shm size for the algorithm container (e.g. "
+        "'16g'); PostgreSQL parallel work allocates dynamic shared "
+        "memory there, and Docker's 64MB default starves it",
+        default=None,
+    )
     parser.add_argument(
         "--cpuset",
         type=str,
