@@ -337,7 +337,7 @@ def run_docker(
     logger = logging.getLogger(f"annb.{container.short_id}")
 
     logger.info(
-        "Created container %s: CPU limit %s, mem limit %s, timeout %d, command %s"
+        "Created container %s: CPU limit %s, mem limit %s, timeout %s, command %s"
         % (container.short_id, cpu_limit, mem_limit, timeout, cmd)
     )
 
