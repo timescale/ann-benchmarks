@@ -153,6 +153,30 @@ Principles
 * Single queries are used by default. ANN-Benchmarks enforces that only one CPU is saturated during experimentation, i.e., no multi-threading. A batch mode is available that provides all queries to the implementations at once. Add the flag `--batch` to `run.py` and `plot.py` to enable batch mode. 
 * Avoid extremely costly index building (more than several hours).
 * Focus on datasets that fit in RAM. For billion-scale benchmarks, see the related [big-ann-benchmarks](https://github.com/harsha-simhadri/big-ann-benchmarks) project.
+
+### Running large datasets (10M+ vectors)
+
+The defaults assume ~1M-vector datasets and one CPU core per
+container; PostgreSQL-backed algorithms at 10M-100M scale need more
+than that. This fork adds three `run.py` flags for it:
+
+* `--memory 650g` — explicit container memory limit. The runner holds
+  the full train array in RAM (a 100M x 768d float32 set is ~286 GB)
+  next to the database.
+* `--cpuset 0-39` — widen the container's CPU set so parallel index
+  builds can use their maintenance workers. Queries stay single-core
+  (one sequential connection, and the PostgreSQL images pin
+  `max_parallel_workers_per_gather = 0`), but build times are then not
+  comparable with default single-core runs.
+* `--shm-size 400g` — PostgreSQL dynamic shared memory lives in
+  `/dev/shm`, which Docker caps at 64 MB by default. Parallel index
+  builds allocate coordination segments there, and pgvector's parallel
+  HNSW build places the whole graph in it, so size this like
+  `maintenance_work_mem`.
+
+The PostgreSQL memory settings themselves (shared_buffers,
+maintenance_work_mem, parallel maintenance workers) are set in the
+algorithm images' Dockerfiles.
 * We mainly support CPU-based ANN algorithms. GPU support exists for FAISS, but it has to be compiled with GPU support locally and experiments must be run using the flags `--local --batch`. 
 * Do proper train/test set of index data and query points.
 * Note that we consider that set similarity datasets are sparse and thus we pass a **sorted** array of integers to algorithms to represent the set of each user.
