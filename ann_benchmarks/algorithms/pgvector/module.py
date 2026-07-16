@@ -71,7 +71,7 @@ class PGVector(BaseANN):
         # Expression (halfvec) indexes get an auto-generated name, so
         # size whatever index exists on the table.
         self._cur.execute(
-            "SELECT sum(pg_relation_size(indexrelid)) FROM pg_index "
+            "SELECT sum(pg_relation_size(indexrelid))::bigint FROM pg_index "
             "WHERE indrelid = 'items'::regclass")
         return self._cur.fetchone()[0] / 1024
 
