@@ -7,8 +7,8 @@ RUN git clone https://github.com/pgvector/pgvector /tmp/pgvector
 RUN DEBIAN_FRONTEND=noninteractive apt-get -y install tzdata
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential postgresql-common
 RUN /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-RUN apt-get install -y --no-install-recommends postgresql-16 postgresql-server-dev-16
-RUN sh -c 'echo "local all all trust" > /etc/postgresql/16/main/pg_hba.conf'
+RUN apt-get install -y --no-install-recommends postgresql-18 postgresql-server-dev-18
+RUN sh -c 'echo "local all all trust" > /etc/postgresql/18/main/pg_hba.conf'
 
 # Dynamically set OPTFLAGS based on the architecture
 RUN ARCH=$(uname -m) && \
@@ -31,9 +31,13 @@ RUN service postgresql start && \
     psql -c "GRANT ALL PRIVILEGES ON DATABASE ann TO ann" && \
     psql -d ann -c "GRANT ALL ON SCHEMA public TO ann" && \
     psql -d ann -c "CREATE EXTENSION vector" && \
-    psql -c "ALTER USER ann SET maintenance_work_mem = '4GB'" && \
-    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 0" && \
-    psql -c "ALTER SYSTEM SET shared_buffers = '4GB'"
+    psql -c "ALTER USER ann SET maintenance_work_mem = '250GB'" && \
+    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 32" && \
+    psql -c "ALTER SYSTEM SET max_worker_processes = 40" && \
+    psql -c "ALTER SYSTEM SET max_parallel_workers = 32" && \
+    psql -c "ALTER SYSTEM SET shared_buffers = '64GB'" && \
+    psql -c "ALTER SYSTEM SET effective_cache_size = '400GB'" && \
+    psql -c "ALTER SYSTEM SET random_page_cost = 1.1"
 USER root
 
 RUN pip install psycopg[binary] pgvector
