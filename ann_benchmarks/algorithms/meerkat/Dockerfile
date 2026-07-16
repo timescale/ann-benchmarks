@@ -28,7 +28,7 @@ RUN pip install meson ninja
 # Build meerkat from local source (tarball created by install.py via git archive)
 ADD ann_benchmarks/algorithms/meerkat/src.tar.gz /tmp/meerkat
 RUN meson setup /tmp/meerkat/builddir /tmp/meerkat \
-        --buildtype=release -Dnative=true && \
+        --buildtype=release -Dnative=true -Db_lto=true && \
     meson compile -C /tmp/meerkat/builddir && \
     meson install -C /tmp/meerkat/builddir
 
@@ -44,7 +44,7 @@ RUN service postgresql start && \
     psql -d ann -c "GRANT ALL ON SCHEMA mkt TO ann" && \
     psql -c "ALTER USER ann SET maintenance_work_mem = '4GB'" && \
     psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 0" && \
-    psql -c "ALTER SYSTEM SET shared_buffers = '4GB'"
+    psql -c "ALTER SYSTEM SET shared_buffers = '8GB'"
 USER root
 
 RUN pip install psycopg[binary] pgvector

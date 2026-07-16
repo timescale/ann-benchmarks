@@ -13,6 +13,9 @@ class Meerkat(BaseANN):
         self._nlist = method_param["nlist"]
         self._fan_out = method_param.get("fan_out")
         self._centroid_compression = method_param.get("centroid_compression", False)
+        self._rerank_vectors = method_param.get("rerank_vectors", False)
+        self._fastscan = method_param.get("fastscan", False)
+        self._fastscan_bits = method_param.get("fastscan_bits", 16)
         self._boundary_epsilon = method_param.get("boundary_epsilon", 0)
         self._soar_lambda = method_param.get("soar_lambda", 0)
         self._cur = None
@@ -60,6 +63,10 @@ class Meerkat(BaseANN):
             with_opts += ", fan_out = %d" % self._fan_out
         if self._centroid_compression:
             with_opts += ", centroid_compression = true"
+        if self._rerank_vectors:
+            with_opts += ", rerank_vectors = true"
+        if self._fastscan:
+            with_opts += ", fastscan = true"
         if self._boundary_epsilon > 0:
             with_opts += ", boundary_epsilon = %g" % self._boundary_epsilon
         if self._soar_lambda > 0:
@@ -73,6 +80,8 @@ class Meerkat(BaseANN):
     def set_query_arguments(self, nprobe_topk):
         self._nprobe, self._topk = nprobe_topk
         self._cur.execute("SET mkt.nprobe = %d" % self._nprobe)
+        if self._fastscan:
+            self._cur.execute("SET mkt.fastscan_bits = %d" % self._fastscan_bits)
 
     def query(self, v, n):
         self._cur.execute(self._query, (v, n), binary=True, prepare=True)
@@ -86,15 +95,14 @@ class Meerkat(BaseANN):
         return self._cur.fetchone()[0] / 1024
 
     def __str__(self):
-        parts = [f"metric={self._metric}", f"nlist={self._nlist}"]
-        if self._fan_out is not None:
-            parts.append(f"fan_out={self._fan_out}")
-        if self._centroid_compression:
-            parts.append("compress=true")
-        parts.append(f"nprobe={self._nprobe}")
-        parts.append(f"topk={self._topk}")
-        if self._boundary_epsilon > 0:
-            parts.append(f"boundary_epsilon={self._boundary_epsilon}")
+        params = [f"nlist={self._nlist}"]
+        if self._fastscan:
+            params.append(f"fs={self._fastscan_bits}")
         if self._soar_lambda > 0:
-            parts.append(f"soar_lambda={self._soar_lambda}")
-        return f"Meerkat({', '.join(parts)})"
+            params.append(f"soar={self._soar_lambda}")
+        if self._boundary_epsilon > 0:
+            params.append(f"bε={self._boundary_epsilon}")
+        if self._rerank_vectors:
+            params.append("rerank")
+        return (f"Meerkat (PG) [{', '.join(params)}]"
+                f" nprobe={self._nprobe}")
