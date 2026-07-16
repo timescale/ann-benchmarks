@@ -15,3 +15,16 @@ float:
         arg_groups: [{M: 24, efConstruction: 200}]
         args: {}
         query_args: [[10, 20, 40, 80, 120, 200, 400, 800]]
+  # Half-precision variant for datasets whose full-precision graph
+  # exceeds memory (100M x 768d): selected explicitly by name.
+  - base_args: ['@metric']
+    constructor: PGVector
+    disabled: false
+    docker_tag: ann-benchmarks-pgvector
+    module: ann_benchmarks.algorithms.pgvector
+    name: pgvector-halfvec
+    run_groups:
+      M-24-halfvec:
+        arg_groups: [{M: 24, efConstruction: 200, halfvec: true}]
+        args: {}
+        query_args: [[10, 20, 40, 80, 120, 200, 400, 800, 1000]]

@@ -12,12 +12,19 @@ class PGVector(BaseANN):
         self._metric = metric
         self._m = method_param['M']
         self._ef_construction = method_param['efConstruction']
+        # Half-precision expression index (embedding::halfvec(dim)):
+        # ~2x smaller graph, which is what lets a 100M-vector build fit
+        # in memory. The query is finalized in fit() where the
+        # dimension is known.
+        self._halfvec = method_param.get('halfvec', False)
         self._cur = None
 
         if metric == "angular":
-            self._query = "SELECT id FROM items ORDER BY embedding <=> %s LIMIT %s"
+            self._op = "<=>"
+            self._ops_prefix = "halfvec_cosine_ops" if self._halfvec else "vector_cosine_ops"
         elif metric == "euclidean":
-            self._query = "SELECT id FROM items ORDER BY embedding <-> %s LIMIT %s"
+            self._op = "<->"
+            self._ops_prefix = "halfvec_l2_ops" if self._halfvec else "vector_l2_ops"
         else:
             raise RuntimeError(f"unknown metric {metric}")
 
@@ -35,14 +42,18 @@ class PGVector(BaseANN):
             for i, embedding in enumerate(X):
                 copy.write_row((i, embedding))
         print("creating index...")
-        if self._metric == "angular":
-            cur.execute(
-                "CREATE INDEX ON items USING hnsw (embedding vector_cosine_ops) WITH (m = %d, ef_construction = %d)" % (self._m, self._ef_construction)
-            )
-        elif self._metric == "euclidean":
-            cur.execute("CREATE INDEX ON items USING hnsw (embedding vector_l2_ops) WITH (m = %d, ef_construction = %d)" % (self._m, self._ef_construction))
+        dim = X.shape[1]
+        if self._halfvec:
+            index_target = "(embedding::halfvec(%d))" % dim
+            order_expr = "embedding::halfvec(%d) %s %%s::halfvec(%d)" % (dim, self._op, dim)
         else:
-            raise RuntimeError(f"unknown metric {self._metric}")
+            index_target = "embedding"
+            order_expr = "embedding %s %%s" % self._op
+        self._query = "SELECT id FROM items ORDER BY " + order_expr + " LIMIT %s"
+        cur.execute(
+            "CREATE INDEX ON items USING hnsw (%s %s) WITH (m = %d, ef_construction = %d)"
+            % (index_target, self._ops_prefix, self._m, self._ef_construction)
+        )
         print("done!")
         self._cur = cur
 
@@ -57,8 +68,13 @@ class PGVector(BaseANN):
     def get_memory_usage(self):
         if self._cur is None:
             return 0
-        self._cur.execute("SELECT pg_relation_size('items_embedding_idx')")
+        # Expression (halfvec) indexes get an auto-generated name, so
+        # size whatever index exists on the table.
+        self._cur.execute(
+            "SELECT sum(pg_relation_size(indexrelid)) FROM pg_index "
+            "WHERE indrelid = 'items'::regclass")
         return self._cur.fetchone()[0] / 1024
 
     def __str__(self):
-        return f"PGVector(m={self._m}, ef_construction={self._ef_construction}, ef_search={self._ef_search})"
+        variant = ", halfvec" if self._halfvec else ""
+        return f"PGVector(m={self._m}, ef_construction={self._ef_construction}{variant}, ef_search={self._ef_search})"
