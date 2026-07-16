@@ -33,6 +33,14 @@ RUN meson setup /tmp/meerkat/builddir /tmp/meerkat \
     meson install -C /tmp/meerkat/builddir
 
 # Initialize database with pgvector + meerkat extensions
+# Deterministic port + no TCP: builds and runs use host
+# networking, so cluster creation otherwise inherits whatever
+# port is free next to the HOST's PostgreSQL, and a TCP bind
+# would collide with it. The benchmark connects over the Unix
+# socket.
+RUN pg_conftool 18 main set port 5432 && \
+    pg_conftool 18 main set listen_addresses ''
+
 USER postgres
 RUN service postgresql start && \
     psql -c "CREATE USER ann WITH ENCRYPTED PASSWORD 'ann'" && \
