@@ -6,16 +6,29 @@ import psycopg
 
 from ..base.module import BaseANN
 
+# Parallel worker budget for the index build. Meerkat derives its build
+# worker count from the planner's heap-size heuristic, which derates
+# large builds; pinning the table's parallel_workers reloption lets the
+# build use the whole budget.
+BUILD_PARALLEL_WORKERS = 32
+
 
 class Meerkat(BaseANN):
     def __init__(self, metric, method_param):
         self._metric = metric
-        self._nlist = method_param["nlist"]
+        # Every index parameter is optional. An index built WITHOUT
+        # options resolves to meerkat's tuned defaults (auto nlist =
+        # rows/256, fastscan posting + centroid layouts, SOAR and
+        # boundary replication), which is the recommended configuration
+        # at every scale -- the empty arg_groups entry in config.yml is
+        # the primary benchmark arm.
+        self._nlist = method_param.get("nlist")
         self._fan_out = method_param.get("fan_out")
         self._centroid_compression = method_param.get("centroid_compression", False)
+        self._centroid_fastscan = method_param.get("centroid_fastscan", False)
         self._rerank_vectors = method_param.get("rerank_vectors", False)
         self._fastscan = method_param.get("fastscan", False)
-        self._fastscan_bits = method_param.get("fastscan_bits", 16)
+        self._fastscan_bits = method_param.get("fastscan_bits")
         self._boundary_epsilon = method_param.get("boundary_epsilon", 0)
         self._soar_lambda = method_param.get("soar_lambda", 0)
         self._cur = None
@@ -58,29 +71,40 @@ class Meerkat(BaseANN):
 
         print("creating index...")
         sys.stdout.flush()
-        with_opts = "nlist = %d" % self._nlist
-        if self._fan_out is not None:
-            with_opts += ", fan_out = %d" % self._fan_out
-        if self._centroid_compression:
-            with_opts += ", centroid_compression = true"
-        if self._rerank_vectors:
-            with_opts += ", rerank_vectors = true"
-        if self._fastscan:
-            with_opts += ", fastscan = true"
-        if self._boundary_epsilon > 0:
-            with_opts += ", boundary_epsilon = %g" % self._boundary_epsilon
-        if self._soar_lambda > 0:
-            with_opts += ", soar_lambda = %g" % self._soar_lambda
         cur.execute(
-            "CREATE INDEX ON items USING mktann (embedding %s)"
-            " WITH (%s)" % (self._ops, with_opts))
+            "ALTER TABLE items SET (parallel_workers = %d)"
+            % BUILD_PARALLEL_WORKERS)
+        with_opts = []
+        if self._nlist is not None:
+            with_opts.append("nlist = %d" % self._nlist)
+        if self._fan_out is not None:
+            with_opts.append("fan_out = %d" % self._fan_out)
+        if self._centroid_compression:
+            with_opts.append("centroid_compression = true")
+        if self._centroid_fastscan:
+            with_opts.append("centroid_fastscan = true")
+        if self._rerank_vectors:
+            with_opts.append("rerank_vectors = true")
+        if self._fastscan:
+            with_opts.append("fastscan = true")
+        if self._boundary_epsilon > 0:
+            with_opts.append("boundary_epsilon = %g" % self._boundary_epsilon)
+        if self._soar_lambda > 0:
+            with_opts.append("soar_lambda = %g" % self._soar_lambda)
+        with_clause = " WITH (%s)" % ", ".join(with_opts) if with_opts else ""
+        cur.execute(
+            "CREATE INDEX ON items USING mktann (embedding %s)%s"
+            % (self._ops, with_clause))
+        cur.execute("ALTER TABLE items RESET (parallel_workers)")
         print("done!")
         self._cur = cur
 
     def set_query_arguments(self, nprobe_topk):
+        # nprobe = 0 keeps meerkat's automatic derivation
+        # (~0.5*sqrt(nlist), targeting roughly 0.95 recall@10).
         self._nprobe, self._topk = nprobe_topk
         self._cur.execute("SET mkt.nprobe = %d" % self._nprobe)
-        if self._fastscan:
+        if self._fastscan_bits is not None:
             self._cur.execute("SET mkt.fastscan_bits = %d" % self._fastscan_bits)
 
     def query(self, v, n):
@@ -95,9 +119,9 @@ class Meerkat(BaseANN):
         return self._cur.fetchone()[0] / 1024
 
     def __str__(self):
-        params = [f"nlist={self._nlist}"]
+        params = [f"nlist={self._nlist if self._nlist is not None else 'auto'}"]
         if self._fastscan:
-            params.append(f"fs={self._fastscan_bits}")
+            params.append(f"fs={self._fastscan_bits or 'default'}")
         if self._soar_lambda > 0:
             params.append(f"soar={self._soar_lambda}")
         if self._boundary_epsilon > 0:
@@ -105,4 +129,4 @@ class Meerkat(BaseANN):
         if self._rerank_vectors:
             params.append("rerank")
         return (f"Meerkat (PG) [{', '.join(params)}]"
-                f" nprobe={self._nprobe}")
+                f" nprobe={self._nprobe if self._nprobe else 'auto'}")

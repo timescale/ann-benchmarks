@@ -554,6 +554,53 @@ def movielens10m(out_fn: str) -> None:
 def movielens20m(out_fn: str) -> None:
     movielens("ml-20m.zip", "ml-20m/ratings.csv", out_fn, ",", True)
 
+def cohere_wikipedia_22_12(out_fn, n, test_size, distance):
+    from sklearn.model_selection import train_test_split
+    from datasets import load_dataset, concatenate_datasets
+    srcs = [
+        "Cohere/wikipedia-22-12-en-embeddings",
+        "Cohere/wikipedia-22-12-simple-embeddings",
+        "Cohere/wikipedia-22-12-de-embeddings",
+        "Cohere/wikipedia-22-12-fr-embeddings",
+        "Cohere/wikipedia-22-12-es-embeddings",
+        "Cohere/wikipedia-22-12-it-embeddings",
+        "Cohere/wikipedia-22-12-ja-embeddings",
+        "Cohere/wikipedia-22-12-ar-embeddings",
+        "Cohere/wikipedia-22-12-zh-embeddings",
+        "Cohere/wikipedia-22-12-ko-embeddings",
+        "Cohere/wikipedia-22-12-hi-embeddings"
+    ]
+    target = n + test_size
+    running_total = 0
+    datasets = []
+    for src in srcs:
+        if running_total >= target:
+            break
+        print(f"loading dataset: {src}")
+        ds = load_dataset(src, split="train")
+        ds.set_format(type="numpy", columns=["emb"])
+        count = ds.shape[0]
+        print(f"{count} embeddings in dataset")
+        if running_total + count > target:
+            count = target - running_total
+            print(f"full dataset not required. selecting {count}")
+            ds = ds.select(range(count))
+            count = ds.shape[0]
+            print(f"{count} embeddings selected")
+        datasets.append(ds)
+        running_total += count
+        print(f"running total: {running_total}")
+    ds = datasets[0] if len(datasets) == 1 else concatenate_datasets(datasets)
+    print(f"final dataset size: {ds.shape[0]}")
+    print("splitting training/testing sets...")
+    train, test = train_test_split(ds, test_size=int(test_size), random_state=42)
+    train = train["emb"]
+    test = test["emb"]
+    print(f"writing output...")
+    write_output(train, test, out_fn, distance)
+    print("done")
+
+
 def dbpedia_entities_openai_1M(out_fn, n = None):
     from sklearn.model_selection import train_test_split
     from datasets import load_dataset
@@ -599,6 +646,8 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "movielens1m-jaccard": movielens1m,
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
+    "cohere-wikipedia-22-12-10M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 10_000_000, 5_000, "angular"),
+    "cohere-wikipedia-22-12-100M-angular": lambda out_fn: cohere_wikipedia_22_12(out_fn, 100_000_000, 10_000, "angular"),
 }
 
 DATASETS.update({

@@ -42,9 +42,13 @@ RUN service postgresql start && \
     psql -d ann -c "CREATE EXTENSION vector" && \
     psql -d ann -c "CREATE EXTENSION meerkat" && \
     psql -d ann -c "GRANT ALL ON SCHEMA mkt TO ann" && \
-    psql -c "ALTER USER ann SET maintenance_work_mem = '4GB'" && \
-    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 0" && \
-    psql -c "ALTER SYSTEM SET shared_buffers = '8GB'"
+    psql -c "ALTER USER ann SET maintenance_work_mem = '160GB'" && \
+    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 32" && \
+    psql -c "ALTER SYSTEM SET max_worker_processes = 40" && \
+    psql -c "ALTER SYSTEM SET max_parallel_workers = 32" && \
+    psql -c "ALTER SYSTEM SET shared_buffers = '64GB'" && \
+    psql -c "ALTER SYSTEM SET effective_cache_size = '400GB'" && \
+    psql -c "ALTER SYSTEM SET random_page_cost = 1.1"
 USER root
 
 RUN pip install psycopg[binary] pgvector
