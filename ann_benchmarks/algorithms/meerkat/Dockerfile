@@ -8,7 +8,7 @@ RUN apt-get install -y --no-install-recommends postgresql-18 postgresql-server-d
 RUN sh -c 'echo "local all all trust" > /etc/postgresql/18/main/pg_hba.conf'
 
 # Build pgvector from source (needed for vector type + Python serialization)
-RUN git clone https://github.com/pgvector/pgvector /tmp/pgvector
+RUN git clone --branch v0.8.5 --depth 1 https://github.com/pgvector/pgvector /tmp/pgvector
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "aarch64" ]; then \
         OPTFLAGS="-march=native -msve-vector-bits=512"; \
