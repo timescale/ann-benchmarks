@@ -152,14 +152,15 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple[
         Tuple: Transformed datasets.
     """
     D, dimension = get_dataset(dataset_name)
-    X_train = numpy.array(D["train"])
-    X_test = numpy.array(D["test"])
     distance = D.attrs["distance"]
 
-    print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
-    print(f"Got {len(X_test)} queries")
-
+    # dataset_transform materializes the arrays; materializing X_train
+    # here as well, just to print its shape, doubles peak memory --
+    # at 100M x 768d that is an extra ~286 GB and an OOM kill.
     train, test = dataset_transform(D)
+    print(f"Got a train set of size ({train.shape[0]} * {dimension})")
+    print(f"Got {len(test)} queries")
+
     return train, test, distance
 
 
