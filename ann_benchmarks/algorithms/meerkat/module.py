@@ -6,11 +6,13 @@ import psycopg
 
 from ..base.module import BaseANN
 
-# Parallel worker budget for the index build. Meerkat derives its build
+# Parallel worker budget for the index build, taken from the image's
+# max_parallel_maintenance_workers: the standard image sets 0 (serial
+# builds, the ann-benchmarks convention) and the large-dataset image
+# opts in at docker build time. Meerkat derives its build
 # worker count from the planner's heap-size heuristic, which derates
 # large builds; pinning the table's parallel_workers reloption lets the
 # build use the whole budget.
-BUILD_PARALLEL_WORKERS = 32
 
 
 class Meerkat(BaseANN):
@@ -71,9 +73,12 @@ class Meerkat(BaseANN):
 
         print("creating index...")
         sys.stdout.flush()
-        cur.execute(
-            "ALTER TABLE items SET (parallel_workers = %d)"
-            % BUILD_PARALLEL_WORKERS)
+        cur.execute("SHOW max_parallel_maintenance_workers")
+        build_workers = int(cur.fetchone()[0])
+        if build_workers > 0:
+            cur.execute(
+                "ALTER TABLE items SET (parallel_workers = %d)"
+                % build_workers)
         with_opts = []
         if self._nlist is not None:
             with_opts.append("nlist = %d" % self._nlist)
@@ -95,7 +100,8 @@ class Meerkat(BaseANN):
         cur.execute(
             "CREATE INDEX ON items USING mktann (embedding %s)%s"
             % (self._ops, with_clause))
-        cur.execute("ALTER TABLE items RESET (parallel_workers)")
+        if build_workers > 0:
+            cur.execute("ALTER TABLE items RESET (parallel_workers)")
         print("done!")
         self._cur = cur
 

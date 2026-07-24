@@ -174,9 +174,21 @@ than that. This fork adds three `run.py` flags for it:
   HNSW build places the whole graph in it, so size this like
   `maintenance_work_mem`.
 
-The PostgreSQL memory settings themselves (shared_buffers,
-maintenance_work_mem, parallel maintenance workers) are set in the
-algorithm images' Dockerfiles.
+The PostgreSQL memory settings themselves are Docker build args in the
+algorithm images' Dockerfiles, defaulting to the out-of-the-box profile
+(modest memory, `max_parallel_maintenance_workers = 0`, i.e. serial
+single-core index builds -- the standard ann-benchmarks convention).
+Large-dataset runs rebuild the images with the scale profile, e.g.:
+
+```bash
+docker build ann_benchmarks/algorithms/pgvector -t ann-benchmarks-pgvector \
+  --build-arg MAINTENANCE_WORK_MEM=250GB --build-arg SHARED_BUFFERS=64GB \
+  --build-arg EFFECTIVE_CACHE_SIZE=400GB \
+  --build-arg MAX_PARALLEL_MAINTENANCE_WORKERS=32
+```
+
+(same args for `ann_benchmarks/algorithms/meerkat`; its module pins the
+table's `parallel_workers` reloption to that worker budget).
 * We mainly support CPU-based ANN algorithms. GPU support exists for FAISS, but it has to be compiled with GPU support locally and experiments must be run using the flags `--local --batch`. 
 * Do proper train/test set of index data and query points.
 * Note that we consider that set similarity datasets are sparse and thus we pass a **sorted** array of integers to algorithms to represent the set of each user.

@@ -41,6 +41,17 @@ RUN meson setup /tmp/meerkat/builddir /tmp/meerkat \
 RUN pg_conftool 18 main set port 5432 && \
     pg_conftool 18 main set listen_addresses ''
 
+# Benchmark-scale knobs. Defaults match the upstream out-of-the-box
+# image (modest memory, serial index builds). Large-dataset runs (10M+)
+# opt in at build time, e.g.:
+#   docker build --build-arg MAINTENANCE_WORK_MEM=160GB \
+#     --build-arg SHARED_BUFFERS=64GB --build-arg EFFECTIVE_CACHE_SIZE=400GB \
+#     --build-arg MAX_PARALLEL_MAINTENANCE_WORKERS=32 ...
+ARG MAINTENANCE_WORK_MEM=4GB
+ARG SHARED_BUFFERS=4GB
+ARG EFFECTIVE_CACHE_SIZE=16GB
+ARG MAX_PARALLEL_MAINTENANCE_WORKERS=0
+
 USER postgres
 RUN service postgresql start && \
     psql -c "CREATE USER ann WITH ENCRYPTED PASSWORD 'ann'" && \
@@ -50,12 +61,12 @@ RUN service postgresql start && \
     psql -d ann -c "CREATE EXTENSION vector" && \
     psql -d ann -c "CREATE EXTENSION meerkat" && \
     psql -d ann -c "GRANT ALL ON SCHEMA mkt TO ann" && \
-    psql -c "ALTER USER ann SET maintenance_work_mem = '160GB'" && \
-    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = 32" && \
+    psql -c "ALTER USER ann SET maintenance_work_mem = '${MAINTENANCE_WORK_MEM}'" && \
+    psql -c "ALTER USER ann SET max_parallel_maintenance_workers = ${MAX_PARALLEL_MAINTENANCE_WORKERS}" && \
     psql -c "ALTER SYSTEM SET max_worker_processes = 40" && \
     psql -c "ALTER SYSTEM SET max_parallel_workers = 32" && \
-    psql -c "ALTER SYSTEM SET shared_buffers = '64GB'" && \
-    psql -c "ALTER SYSTEM SET effective_cache_size = '400GB'" && \
+    psql -c "ALTER SYSTEM SET shared_buffers = '${SHARED_BUFFERS}'" && \
+    psql -c "ALTER SYSTEM SET effective_cache_size = '${EFFECTIVE_CACHE_SIZE}'" && \
     psql -c "ALTER SYSTEM SET random_page_cost = 1.1" && \
     psql -c "ALTER SYSTEM SET max_parallel_workers_per_gather = 0"
 USER root
